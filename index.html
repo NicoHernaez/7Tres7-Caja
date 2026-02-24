@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7Tres7 - Panel de Caja</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2/qz-tray.min.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥟</text></svg>">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .toast { animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .card-enter { animation: fadeInUp 0.3s ease; }
+        .kanban-col { min-height: calc(100vh - 120px); }
+        .order-card { transition: box-shadow 0.2s, transform 0.15s; }
+        .order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-1px); }
+        /* Custom scrollbar */
+        .kanban-col::-webkit-scrollbar { width: 6px; }
+        .kanban-col::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .kanban-col::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gray-900">
+        <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-8">
+                <span class="text-6xl">🥟</span>
+                <h1 class="text-3xl font-bold mt-4">7TRES7 CAJA</h1>
+                <p class="text-gray-500">Panel de pedidos y caja</p>
+            </div>
+            <div class="space-y-4">
+                <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center space-x-3 bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition">
+                    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    <span>Iniciar sesion con Google</span>
+                </button>
+
+                <div class="relative my-4">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div>
+                    <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-500">o</span></div>
+                </div>
+
+                <div id="magic-link-form">
+                    <div class="flex space-x-2">
+                        <input type="email" id="magic-email" class="flex-1 border rounded-lg px-4 py-3" placeholder="tu@email.com" value="nicohernaez22@gmail.com">
+                        <button onclick="loginWithMagicLink()" class="bg-orange-500 text-white px-4 py-3 rounded-lg font-semibold hover:bg-orange-600 whitespace-nowrap">Enviar link</button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2 text-center">Te enviamos un link de acceso a tu email</p>
+                </div>
+
+                <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
+                <p id="login-success" class="text-green-600 text-sm text-center hidden"></p>
+                <p id="login-loading" class="text-gray-500 text-sm text-center hidden pulse">Verificando sesion...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="hidden h-screen flex flex-col">
+        <!-- Top Bar -->
+        <header class="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0 z-20 shadow-lg">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🥟</span>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">7TRES7 <span class="text-orange-400">CAJA</span></h1>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4 text-sm">
+                <div id="stats-bar" class="hidden md:flex items-center space-x-4 bg-gray-800 rounded-lg px-4 py-2">
+                    <span>Ventas: <strong id="stat-revenue" class="text-green-400">$0</strong></span>
+                    <span class="text-gray-600">|</span>
+                    <span>Pedidos: <strong id="stat-count" class="text-orange-400">0</strong></span>
+                    <span class="text-gray-600">|</span>
+                    <span>Promedio: <strong id="stat-avg" class="text-blue-400">$0</strong></span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2" id="qz-status" title="QZ Tray">
+                    <span id="qz-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                    <span class="text-xs" id="qz-label">QZ Tray</span>
+                </div>
+                <button onclick="logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-lg hover:bg-gray-800 transition text-sm" title="Cerrar sesion">Salir</button>
+            </div>
+        </header>
+
+        <!-- Kanban Board -->
+        <div class="flex-1 overflow-hidden">
+            <div class="grid grid-cols-3 gap-0 h-full">
+                <!-- Column 1: PENDIENTES -->
+                <div class="flex flex-col border-r border-gray-200 bg-gray-50">
+                    <div class="bg-yellow-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+                        <h2 class="font-bold text-sm uppercase tracking-wide">Pendientes</h2>
+                        <span id="count-pending" class="bg-yellow-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
+                    </div>
+                    <div id="col-pending" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+                </div>
+
+                <!-- Column 2: EN PREPARACION -->
+                <div class="flex flex-col border-r border-gray-200 bg-gray-50">
+                    <div class="bg-orange-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+                        <h2 class="font-bold text-sm uppercase tracking-wide">En Preparacion</h2>
+                        <span id="count-preparing" class="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
+                    </div>
+                    <div id="col-preparing" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+                </div>
+
+                <!-- Column 3: LISTOS -->
+                <div class="flex flex-col bg-gray-50">
+                    <div class="bg-green-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
+                        <h2 class="font-bold text-sm uppercase tracking-wide">Listos</h2>
+                        <span id="count-ready" class="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
+                    </div>
+                    <div id="col-ready" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURACION ====================
+        const SUPABASE_URL = 'https://yfdustfjfmifvgybwinr.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZHVzdGZqZm1pZnZneWJ3aW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMzU3ODQsImV4cCI6MjA4NTgxMTc4NH0.YcLo7YXePi0_okJxtPuYLaMQI2-P4C8UxNzXnLfQoBY';
+        const AUTHORIZED_EMAILS = ['nicohernaez22@gmail.com'];
+
+        // Printer config
+        const PRINTERS = { BARRA: 'Barra', MINUTA: 'Minuta', PARRILLA: 'Parrilla Delivery' };
+        const CATEGORY_PRINTER_MAP = {
+            'empanadas': PRINTERS.MINUTA, 'minutas': PRINTERS.MINUTA, 'pizzas': PRINTERS.MINUTA, 'postres': PRINTERS.MINUTA,
+            'restaurant': PRINTERS.PARRILLA, 'pastas': PRINTERS.PARRILLA, 'carnes': PRINTERS.PARRILLA, 'parrilla': PRINTERS.PARRILLA,
+            'bebidas': PRINTERS.BARRA, 'gaseosas': PRINTERS.BARRA, 'cervezas': PRINTERS.BARRA, 'vinos': PRINTERS.BARRA
+        };
+
+        let db = null;
+        let currentUser = null;
+        let appInitialized = false;
+        let allOrders = [];
+        let qzConnected = false;
+        let realtimeChannel = null;
+        let knownOrderIds = new Set();
+
+        // ==================== SUPABASE INIT ====================
+        db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ==================== AUTH ====================
+        db.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth event:', event, session?.user?.email);
+            const loading = document.getElementById('login-loading');
+            const error = document.getElementById('login-error');
+
+            if (session && !appInitialized) {
+                const email = session.user.email;
+
+                if (!AUTHORIZED_EMAILS.includes(email)) {
+                    await db.auth.signOut();
+                    loading.classList.add('hidden');
+                    error.textContent = 'Acceso denegado. El email ' + email + ' no esta autorizado.';
+                    error.classList.remove('hidden');
+                    return;
+                }
+
+                appInitialized = true;
+                currentUser = session.user;
+                error.classList.add('hidden');
+                loading.classList.add('hidden');
+
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+
+                initApp();
+                showToast('Bienvenido a 7Tres7 Caja', 'success');
+
+            } else if (event === 'SIGNED_OUT') {
+                appInitialized = false;
+                currentUser = null;
+                document.getElementById('main-app').classList.add('hidden');
+                document.getElementById('login-screen').classList.remove('hidden');
+                loading.classList.add('hidden');
+                if (realtimeChannel) {
+                    db.removeChannel(realtimeChannel);
+                    realtimeChannel = null;
+                }
+            }
+        });
+
+        // Fallback: hide loading if auth doesn't fire within 3s
+        setTimeout(() => {
+            if (!appInitialized) {
+                document.getElementById('login-loading').classList.add('hidden');
+            }
+        }, 3000);
+
+        async function loginWithGoogle() {
+            const error = document.getElementById('login-error');
+            error.classList.add('hidden');
+            try {
+                const { error: authError } = await db.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: window.location.href.split('#')[0].split('?')[0]
+                    }
+                });
+                if (authError) throw authError;
+            } catch (e) {
+                error.textContent = 'Error al iniciar sesion: ' + e.message;
+                error.classList.remove('hidden');
+            }
+        }
+
+        async function loginWithMagicLink() {
+            const email = document.getElementById('magic-email').value.trim();
+            const error = document.getElementById('login-error');
+            const success = document.getElementById('login-success');
+            error.classList.add('hidden');
+            success.classList.add('hidden');
+
+            if (!email) { error.textContent = 'Ingresa tu email'; error.classList.remove('hidden'); return; }
+            if (!AUTHORIZED_EMAILS.includes(email)) { error.textContent = 'El email ' + email + ' no esta autorizado.'; error.classList.remove('hidden'); return; }
+
+            try {
+                const { error: authError } = await db.auth.signInWithOtp({
+                    email: email,
+                    options: {
+                        emailRedirectTo: window.location.href.split('#')[0].split('?')[0]
+                    }
+                });
+                if (authError) throw authError;
+                success.textContent = 'Link enviado a ' + email + '. Revisa tu bandeja de entrada.';
+                success.classList.remove('hidden');
+            } catch (e) {
+                error.textContent = 'Error: ' + e.message;
+                error.classList.remove('hidden');
+            }
+        }
+
+        async function logout() {
+            if (!confirm('Cerrar sesion?')) return;
+            await db.auth.signOut();
+        }
+
+        // ==================== APP INIT ====================
+        async function initApp() {
+            await loadOrders();
+            subscribeToOrders();
+            connectQZ();
+        }
+
+        // ==================== LOAD ORDERS ====================
+        function getTodayStart() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d.toISOString();
+        }
+
+        async function loadOrders() {
+            try {
+                const todayStart = getTodayStart();
+                const { data, error } = await db
+                    .from('orders')
+                    .select('*')
+                    .gte('created_at', todayStart)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                allOrders = data || [];
+                // Track known order IDs
+                allOrders.forEach(o => knownOrderIds.add(o.id));
+                renderBoard();
+                updateStats();
+            } catch (e) {
+                console.error('Error loading orders:', e);
+                showToast('Error cargando pedidos: ' + e.message, 'error');
+            }
+        }
+
+        // ==================== REALTIME ====================
+        function subscribeToOrders() {
+            if (realtimeChannel) {
+                db.removeChannel(realtimeChannel);
+            }
+
+            realtimeChannel = db
+                .channel('orders-caja')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders'
+                }, (payload) => {
+                    console.log('Realtime event:', payload.eventType, payload.new?.order_number);
+                    handleRealtimeEvent(payload);
+                })
+                .subscribe((status) => {
+                    console.log('Realtime status:', status);
+                });
+        }
+
+        function handleRealtimeEvent(payload) {
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+
+            const todayStart = getTodayStart();
+
+            if (eventType === 'INSERT') {
+                // Only add if it's from today
+                if (newRecord.created_at >= todayStart) {
+                    const isNew = !knownOrderIds.has(newRecord.id);
+                    knownOrderIds.add(newRecord.id);
+
+                    // Check if already in the array
+                    const existingIdx = allOrders.findIndex(o => o.id === newRecord.id);
+                    if (existingIdx >= 0) {
+                        allOrders[existingIdx] = newRecord;
+                    } else {
+                        allOrders.unshift(newRecord);
+                    }
+
+                    if (isNew) {
+                        playNotificationSound();
+                    }
+                }
+            } else if (eventType === 'UPDATE') {
+                const idx = allOrders.findIndex(o => o.id === newRecord.id);
+                if (idx >= 0) {
+                    allOrders[idx] = newRecord;
+                } else if (newRecord.created_at >= todayStart) {
+                    allOrders.unshift(newRecord);
+                }
+            } else if (eventType === 'DELETE') {
+                allOrders = allOrders.filter(o => o.id !== (oldRecord?.id || ''));
+            }
+
+            renderBoard();
+            updateStats();
+        }
+
+        // ==================== NOTIFICATION SOUND ====================
+        function playNotificationSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                // First beep
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.frequency.value = 880;
+                osc1.type = 'sine';
+                gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 0.2);
+
+                // Second beep (higher)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.frequency.value = 1100;
+                osc2.type = 'sine';
+                gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.25);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc2.start(ctx.currentTime + 0.25);
+                osc2.stop(ctx.currentTime + 0.5);
+
+                // Clean up
+                setTimeout(() => ctx.close(), 1000);
+            } catch (e) {
+                console.warn('Could not play notification sound:', e);
+            }
+        }
+
+        // ==================== RENDER BOARD ====================
+        function renderBoard() {
+            const pending = allOrders.filter(o => o.status === 'pending');
+            const preparing = allOrders.filter(o => o.status === 'confirmed' || o.status === 'preparing');
+            const ready = allOrders.filter(o => o.status === 'ready');
+
+            // Sort: newest first for pending, oldest first for preparing/ready
+            pending.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            preparing.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            ready.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+            document.getElementById('count-pending').textContent = pending.length;
+            document.getElementById('count-preparing').textContent = preparing.length;
+            document.getElementById('count-ready').textContent = ready.length;
+
+            renderColumn('col-pending', pending, 'pending');
+            renderColumn('col-preparing', preparing, 'preparing');
+            renderColumn('col-ready', ready, 'ready');
+        }
+
+        function renderColumn(containerId, orders, column) {
+            const container = document.getElementById(containerId);
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-32 text-gray-400">
+                        <span class="text-3xl mb-2">${column === 'pending' ? '⏳' : column === 'preparing' ? '🍳' : '✅'}</span>
+                        <span class="text-sm">Sin pedidos</span>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = orders.map(o => renderOrderCard(o, column)).join('');
+        }
+
+        function renderOrderCard(order, column) {
+            const time = new Date(order.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+            const isDelivery = order.delivery_type === 'delivery';
+            const deliveryIcon = isDelivery ? '🚚' : '🏪';
+            const deliveryLabel = isDelivery ? 'DELIVERY' : 'RETIRA';
+            const address = isDelivery && order.delivery_address ? order.delivery_address : '';
+
+            // Customer info from customers join or from customer_notes
+            const customerName = order.customer_name || extractFromNotes(order.customer_notes, 'Nombre') || '';
+            const customerPhone = order.customer_phone || extractFromNotes(order.customer_notes, 'Tel') || '';
+
+            // Items list
+            const items = order.items || [];
+            const itemsHTML = items.map(i => {
+                let line = `<span class="font-semibold">${i.quantity}x</span> ${i.name}`;
+                if (i.obs) line += ` <span class="text-gray-400 text-xs italic">(${i.obs})</span>`;
+                if (i.cooking_method) {
+                    const cm = i.cooking_method === 'frito' ? 'Frita' : i.cooking_method === 'horno' ? 'Al Horno' : i.cooking_method;
+                    line += ` <span class="text-orange-500 text-xs">[${cm}]</span>`;
+                }
+                return `<div class="text-sm text-gray-700 leading-relaxed">${line}</div>`;
+            }).join('');
+
+            // Payment method
+            const payLabels = {
+                'mercadopago': '💳 MP',
+                'cash': '💵 Efectivo',
+                'transfer': '🏦 Transfer',
+                'efectivo': '💵 Efectivo'
+            };
+            const payLabel = payLabels[order.payment_method] || order.payment_method || '';
+
+            // Total formatted
+            const total = '$' + parseFloat(order.total || 0).toLocaleString('es-AR');
+
+            // Delivery fee
+            const deliveryFee = parseFloat(order.delivery_fee || 0);
+            const deliveryFeeHTML = deliveryFee > 0 ? `<span class="text-xs text-blue-500 ml-2">(+envio $${deliveryFee.toLocaleString('es-AR')})</span>` : '';
+
+            // Action button
+            let actionBtn = '';
+            if (column === 'pending') {
+                actionBtn = `<button onclick="confirmOrder('${order.id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">CONFIRMAR</button>`;
+            } else if (column === 'preparing') {
+                actionBtn = `<button onclick="markReady('${order.id}')" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">LISTO</button>`;
+            } else if (column === 'ready') {
+                actionBtn = `<button onclick="markDelivered('${order.id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">ENTREGADO</button>`;
+            }
+
+            // Status sub-badge for confirmed vs preparing
+            let statusBadge = '';
+            if (column === 'preparing') {
+                if (order.status === 'confirmed') {
+                    statusBadge = '<span class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Confirmado</span>';
+                } else {
+                    statusBadge = '<span class="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-medium">Preparando</span>';
+                }
+            }
+
+            // Card border color by column
+            const borderColor = column === 'pending' ? 'border-l-yellow-400' : column === 'preparing' ? 'border-l-orange-400' : 'border-l-green-400';
+
+            return `
+            <div class="order-card card-enter bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${borderColor} overflow-hidden">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-3 pt-3 pb-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-lg text-gray-900">#${order.order_number || '---'}</span>
+                        ${statusBadge}
+                    </div>
+                    <span class="text-xs text-gray-400 font-medium">${time}</span>
+                </div>
+
+                <!-- Delivery type -->
+                <div class="px-3 pb-1">
+                    <span class="text-xs font-bold ${isDelivery ? 'text-blue-600' : 'text-green-600'}">${deliveryIcon} ${deliveryLabel}</span>
+                    ${address ? `<div class="text-xs text-gray-500 truncate" title="${address}">${address}</div>` : ''}
+                    ${customerName ? `<div class="text-xs text-gray-500">${customerName}</div>` : ''}
+                </div>
+
+                <!-- Items -->
+                <div class="border-t border-gray-100 px-3 py-2">
+                    ${itemsHTML || '<span class="text-xs text-gray-400">Sin items</span>'}
+                </div>
+
+                <!-- Footer -->
+                <div class="border-t border-gray-100 px-3 py-2 bg-gray-50">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <span class="font-bold text-orange-600">${total}</span>
+                            ${deliveryFeeHTML}
+                            <span class="text-xs text-gray-400 ml-1">${payLabel}</span>
+                        </div>
+                        ${customerPhone ? `<span class="text-xs text-gray-400">Tel: ${customerPhone}</span>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        ${actionBtn}
+                        <button onclick="printOrder('${order.id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg transition" title="Imprimir">🖨️</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function extractFromNotes(notes, field) {
+            if (!notes) return '';
+            const match = notes.match(new RegExp(field + ':\\s*([^|]+)'));
+            return match ? match[1].trim() : '';
+        }
+
+        // ==================== STATS ====================
+        function updateStats() {
+            const todayOrders = allOrders.filter(o => o.status !== 'cancelled');
+            const revenue = todayOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+            const count = todayOrders.length;
+            const avg = count > 0 ? Math.round(revenue / count) : 0;
+
+            document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString('es-AR');
+            document.getElementById('stat-count').textContent = count;
+            document.getElementById('stat-avg').textContent = '$' + avg.toLocaleString('es-AR');
+        }
+
+        // ==================== ORDER STATUS UPDATES ====================
+        async function confirmOrder(orderId) {
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'confirmed',
+                    confirmed_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                showToast('Pedido confirmado', 'success');
+
+                // Auto-print on confirm
+                printOrder(orderId);
+
+                // Update local state immediately
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'confirmed';
+                    allOrders[idx].confirmed_at = new Date().toISOString();
+                    allOrders[idx].updated_at = new Date().toISOString();
+                    renderBoard();
+                }
+            } catch (e) {
+                console.error('Error confirming order:', e);
+                showToast('Error al confirmar: ' + e.message, 'error');
+            }
+        }
+
+        async function markReady(orderId) {
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'ready',
+                    ready_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                showToast('Pedido listo', 'success');
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'ready';
+                    allOrders[idx].ready_at = new Date().toISOString();
+                    allOrders[idx].updated_at = new Date().toISOString();
+                    renderBoard();
+                }
+            } catch (e) {
+                console.error('Error updating order:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function markDelivered(orderId) {
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'delivered',
+                    delivered_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                showToast('Pedido entregado', 'success');
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'delivered';
+                    allOrders[idx].delivered_at = new Date().toISOString();
+                    allOrders[idx].updated_at = new Date().toISOString();
+                    renderBoard();
+                }
+            } catch (e) {
+                console.error('Error updating order:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        // ==================== QZ TRAY ====================
+        async function connectQZ() {
+            try {
+                if (typeof qz === 'undefined') {
+                    updateQZStatus(false, 'No cargado');
+                    return false;
+                }
+
+                if (qzConnected && qz.websocket.isActive()) return true;
+
+                qz.security.setCertificatePromise(function(resolve) {
+                    resolve();
+                });
+                qz.security.setSignaturePromise(function(toSign) {
+                    return function(resolve) { resolve(); };
+                });
+
+                await qz.websocket.connect();
+                qzConnected = true;
+                updateQZStatus(true, 'Conectado');
+                console.log('QZ Tray conectado');
+                return true;
+            } catch (e) {
+                qzConnected = false;
+                updateQZStatus(false, 'Desconectado');
+                console.warn('QZ Tray no disponible:', e.message);
+                return false;
+            }
+        }
+
+        function updateQZStatus(connected, label) {
+            const dot = document.getElementById('qz-dot');
+            const lbl = document.getElementById('qz-label');
+            dot.className = 'w-2.5 h-2.5 rounded-full ' + (connected ? 'bg-green-500' : 'bg-red-500');
+            lbl.textContent = label || 'QZ Tray';
+        }
+
+        // Retry QZ connection every 15s if not connected
+        setInterval(async () => {
+            if (!qzConnected && appInitialized) {
+                await connectQZ();
+            }
+        }, 15000);
+
+        function getPrinterForCategory(cat) {
+            return CATEGORY_PRINTER_MAP[(cat || '').toLowerCase().trim()] || PRINTERS.BARRA;
+        }
+
+        function inferCategoryFromName(name) {
+            if (!name) return 'minutas';
+            const n = name.toLowerCase();
+            if (n.includes('empanada') || n.includes('emp ') || n.includes('emp.')) return 'empanadas';
+            if (n.includes('pizza')) return 'pizzas';
+            if (n.includes('lomito') || n.includes('milanesa') || n.includes('hamburguesa') || n.includes('suprema')) return 'minutas';
+            if (n.includes('flan') || n.includes('helado') || n.includes('cheese')) return 'postres';
+            if (n.includes('sorrentino') || n.includes('tagliatelle') || n.includes('lasagna') || n.includes('noqui') || n.includes('raviole')) return 'pastas';
+            if (n.includes('bife') || n.includes('asado') || n.includes('bondiola') || n.includes('matambre') || n.includes('pollo')) return 'parrilla';
+            if (n.includes('coca') || n.includes('fanta') || n.includes('sprite') || n.includes('agua') || n.includes('cerveza') || n.includes('vino')) return 'bebidas';
+            return 'minutas';
+        }
+
+        async function printKitchenTicket(printerName, items, orderNumber, deliveryInfo) {
+            const config = qz.configs.create(printerName);
+            const data = [
+                '\x1B\x40',        // Init
+                '\x1B\x61\x01',    // Center
+                '\x1B\x21\x30',    // Double height+width
+                `PEDIDO #${orderNumber}\n`,
+                '\x1B\x21\x00',    // Normal
+                `${deliveryInfo}\n`,
+                '\x1B\x61\x00',    // Left align
+                '--------------------------------\n'
+            ];
+            for (const item of items) {
+                data.push('\x1B\x21\x10'); // Double height
+                data.push(`${item.quantity}x ${item.name}\n`);
+                data.push('\x1B\x21\x00'); // Normal
+                if (item.obs) data.push(`   -> ${item.obs}\n`);
+                if (item.cooking_method) {
+                    const cm = item.cooking_method === 'frito' ? 'Frita' : item.cooking_method === 'horno' ? 'Al Horno' : item.cooking_method;
+                    data.push(`   [${cm}]\n`);
+                }
+            }
+            data.push('--------------------------------\n');
+            data.push(`${new Date().toLocaleTimeString('es-AR')}\n`);
+            data.push('\n\n\n');
+            data.push('\x1D\x56\x00'); // Paper cut
+            await qz.print(config, data);
+        }
+
+        async function printFullTicket(order) {
+            const config = qz.configs.create(PRINTERS.BARRA);
+            const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
+            const payLabel = order.payment_method === 'mercadopago' ? 'Mercado Pago' : order.payment_method === 'cash' || order.payment_method === 'efectivo' ? 'Efectivo' : order.payment_method === 'transfer' ? 'Transferencia' : (order.payment_method || '');
+
+            const data = [
+                '\x1B\x40',        // Init
+                '\x1B\x61\x01',    // Center
+                '\x1B\x21\x30',    // Double height+width
+                '7TRES7\n',
+                '\x1B\x21\x00',    // Normal
+                'Restaurant & Delivery\n',
+                'Calle 18 N 737 - Gral. Pico\n',
+                'Tel: 2302 51-5656\n',
+                '================================\n',
+                '\x1B\x61\x00',    // Left
+                `Pedido: #${order.order_number}\n`,
+                `${deliveryInfo}\n`,
+                `Fecha: ${new Date(order.created_at).toLocaleString('es-AR')}\n`,
+                '--------------------------------\n'
+            ];
+
+            for (const item of (order.items || [])) {
+                const nameStr = (`${item.quantity}x ${item.name}`).substring(0, 24).padEnd(24);
+                const priceStr = ('$' + ((item.subtotal || item.price * item.quantity) || 0).toLocaleString('es-AR')).padStart(8);
+                data.push(`${nameStr}${priceStr}\n`);
+            }
+
+            data.push('--------------------------------\n');
+            const subtotal = parseFloat(order.subtotal || order.total || 0);
+            data.push(`${'Subtotal:'.padEnd(24)}$${subtotal.toLocaleString('es-AR').padStart(8)}\n`);
+            if (parseFloat(order.discount || 0) > 0) {
+                data.push(`${'Descuento:'.padEnd(24)}-$${parseFloat(order.discount).toLocaleString('es-AR').padStart(7)}\n`);
+            }
+            if (parseFloat(order.delivery_fee || 0) > 0) {
+                data.push(`${'Envio:'.padEnd(24)}$${parseFloat(order.delivery_fee).toLocaleString('es-AR').padStart(8)}\n`);
+            }
+
+            data.push('================================\n');
+            data.push('\x1B\x21\x10'); // Double height
+            data.push(`${'TOTAL:'.padEnd(24)}$${parseFloat(order.total).toLocaleString('es-AR').padStart(8)}\n`);
+            data.push('\x1B\x21\x00'); // Normal
+            data.push(`Pago: ${payLabel}\n`);
+            data.push('================================\n');
+            data.push('\x1B\x61\x01'); // Center
+            data.push('Gracias por tu compra!\n');
+            data.push('Instagram: @737resto\n');
+            data.push('\n\n\n');
+            data.push('\x1D\x56\x00'); // Paper cut
+
+            await qz.print(config, data);
+        }
+
+        async function printOrder(orderId) {
+            try {
+                // Find order in local state first, fallback to DB
+                let order = allOrders.find(o => o.id === orderId);
+                if (!order) {
+                    const { data, error } = await db.from('orders').select('*').eq('id', orderId).single();
+                    if (error || !data) { showToast('Error obteniendo pedido', 'error'); return; }
+                    order = data;
+                }
+
+                const connected = await connectQZ();
+                if (!connected) {
+                    showToast('QZ Tray no disponible. Verifica que este corriendo.', 'error');
+                    return;
+                }
+
+                const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
+
+                // Group items by printer
+                const itemsByPrinter = {};
+                for (const item of (order.items || [])) {
+                    const cat = item.category || inferCategoryFromName(item.name);
+                    const printer = getPrinterForCategory(cat);
+                    if (!itemsByPrinter[printer]) itemsByPrinter[printer] = [];
+                    itemsByPrinter[printer].push(item);
+                }
+
+                const promises = [];
+
+                // Kitchen tickets (exclude Barra)
+                for (const [printer, items] of Object.entries(itemsByPrinter)) {
+                    if (printer !== PRINTERS.BARRA) {
+                        promises.push(printKitchenTicket(printer, items, order.order_number, deliveryInfo));
+                    }
+                }
+
+                // Full ticket on Barra
+                promises.push(printFullTicket(order));
+
+                await Promise.all(promises);
+                showToast(`Pedido #${order.order_number} enviado a imprimir`, 'success');
+            } catch (e) {
+                console.error('Error imprimiendo:', e);
+                showToast('Error al imprimir: ' + e.message, 'error');
+            }
+        }
+
+        // ==================== HELPERS ====================
+        function showToast(msg, type = 'info') {
+            const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+            const toast = document.createElement('div');
+            toast.className = `toast ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg text-sm`;
+            toast.textContent = msg;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ESC to close modals (none in this app, but just in case)
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                // Nothing to close in this simple UI
+            }
+        });
+    </script>
+</body>
+</html>
