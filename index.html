@@ -82,10 +82,10 @@
                 </div>
             </div>
             <div class="flex items-center space-x-3">
-                <div class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2" id="qz-status" title="QZ Tray">
+                <button onclick="diagnosticQZ()" class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2 hover:bg-gray-700 transition cursor-pointer" id="qz-status" title="Click para diagnostico QZ Tray">
                     <span id="qz-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
                     <span class="text-xs" id="qz-label">QZ Tray</span>
-                </div>
+                </button>
                 <button onclick="logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-lg hover:bg-gray-800 transition text-sm" title="Cerrar sesion">Salir</button>
             </div>
         </header>
@@ -796,6 +796,61 @@
                 showToast('Error al imprimir: ' + e.message, 'error');
                 await disconnectQZ();
             }
+        }
+
+        // ==================== QZ TRAY DIAGNOSTICO ====================
+        async function diagnosticQZ() {
+            if (typeof qz === 'undefined') {
+                alert('QZ Tray: libreria no cargada.\n\nVerifica que la PC tenga internet para cargar qz-tray.min.js');
+                return;
+            }
+
+            let report = '=== DIAGNOSTICO QZ TRAY ===\n\n';
+            const hosts = [
+                { name: 'PC BARRA', ip: QZ_HOSTS.BARRA, printers: ['Barra'] },
+                { name: 'PC COCINA', ip: QZ_HOSTS.COCINA, printers: ['Minuta', 'Parrilla Delivery'] }
+            ];
+
+            for (const host of hosts) {
+                report += `${host.name} (${host.ip}):\n`;
+                try {
+                    if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                    qz.security.setCertificatePromise(function(resolve) { resolve(); });
+                    qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
+                    await qz.websocket.connect({ host: host.ip });
+                    report += `  Conexion: OK\n`;
+
+                    // Listar impresoras encontradas
+                    const found = await qz.printers.find();
+                    report += `  Impresoras encontradas: ${found.length}\n`;
+                    for (const p of found) {
+                        const expected = host.printers.includes(p) ? ' [CONFIGURADA]' : '';
+                        report += `    - ${p}${expected}\n`;
+                    }
+
+                    // Verificar que las esperadas existan
+                    for (const expected of host.printers) {
+                        if (!found.includes(expected)) {
+                            report += `  !! FALTA: "${expected}" no encontrada en esta PC\n`;
+                        }
+                    }
+
+                    await qz.websocket.disconnect();
+                } catch (e) {
+                    report += `  Conexion: ERROR - ${e.message}\n`;
+                    report += `  Verificar:\n`;
+                    report += `    - QZ Tray esta corriendo en esa PC?\n`;
+                    report += `    - Esta PC esta en la misma red WiFi?\n`;
+                    report += `    - IP ${host.ip} es correcta?\n`;
+                }
+                report += '\n';
+            }
+
+            report += 'Desde esta PC: ' + window.location.hostname + '\n';
+            report += 'Hora: ' + new Date().toLocaleString('es-AR');
+
+            console.log(report);
+            alert(report);
         }
 
         // ==================== NOTIFICACION WHATSAPP ====================
