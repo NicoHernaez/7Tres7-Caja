@@ -623,17 +623,34 @@
         }
 
         // ==================== QZ TRAY ====================
+        // Intenta conectar a un host. Si falla con IP, intenta localhost como fallback.
         async function connectQZHost(host) {
             try {
                 if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return false; }
                 if (qz.websocket.isActive()) await qz.websocket.disconnect();
                 qz.security.setCertificatePromise(function(resolve) { resolve(); });
                 qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-                await qz.websocket.connect({ host: host });
-                console.log('QZ Tray conectado a', host);
-                return true;
+
+                // Intentar conectar a la IP especifica
+                try {
+                    await qz.websocket.connect({ host: host });
+                    console.log('QZ Tray conectado a', host);
+                    return true;
+                } catch (e1) {
+                    console.warn('QZ Tray: fallo IP ' + host + ', intentando localhost...');
+                    // Fallback: si estamos en la misma PC, localhost funciona
+                    try {
+                        if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                        await qz.websocket.connect();
+                        console.log('QZ Tray conectado via localhost (fallback para ' + host + ')');
+                        return true;
+                    } catch (e2) {
+                        console.warn('QZ Tray no disponible en ' + host + ' ni localhost:', e2.message);
+                        return false;
+                    }
+                }
             } catch (e) {
-                console.warn('QZ Tray no disponible en ' + host + ':', e.message);
+                console.warn('QZ Tray error general:', e.message);
                 return false;
             }
         }
@@ -642,24 +659,36 @@
             try { if (typeof qz !== 'undefined' && qz.websocket.isActive()) await qz.websocket.disconnect(); } catch (e) {}
         }
 
-        // Verificar conectividad con ambos hosts
+        // Verificar conectividad
         async function checkQZStatus() {
             if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return; }
-            let barraOk = false, cocinaOk = false;
-            try {
-                barraOk = await connectQZHost(QZ_HOSTS.BARRA);
-                await disconnectQZ();
-            } catch (e) {}
-            try {
-                cocinaOk = await connectQZHost(QZ_HOSTS.COCINA);
-                await disconnectQZ();
-            } catch (e) {}
 
-            if (barraOk && cocinaOk) updateQZStatus(true, 'Barra + Cocina');
-            else if (barraOk) updateQZStatus(true, 'Solo Barra');
-            else if (cocinaOk) updateQZStatus(true, 'Solo Cocina');
-            else updateQZStatus(false, 'Desconectado');
-            qzConnected = barraOk || cocinaOk;
+            // Intentar localhost primero (caso mas comun: caja corre en una de las PCs)
+            let localOk = false;
+            try {
+                if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                qz.security.setCertificatePromise(function(resolve) { resolve(); });
+                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
+                await qz.websocket.connect();
+                localOk = true;
+                // Detectar impresoras locales para saber en que PC estamos
+                const localPrinters = await qz.printers.find();
+                await qz.websocket.disconnect();
+                const hasBarra = localPrinters.includes(PRINTERS.BARRA);
+                const hasMinuta = localPrinters.includes(PRINTERS.MINUTA);
+                const hasParrilla = localPrinters.includes(PRINTERS.PARRILLA);
+
+                let label = 'Conectado';
+                if (hasBarra && (hasMinuta || hasParrilla)) label = 'Barra + Cocina';
+                else if (hasBarra) label = 'Barra (local)';
+                else if (hasMinuta || hasParrilla) label = 'Cocina (local)';
+
+                updateQZStatus(true, label);
+                qzConnected = true;
+            } catch (e) {
+                updateQZStatus(false, 'Desconectado');
+                qzConnected = false;
+            }
         }
 
         function updateQZStatus(connected, label) {
@@ -758,39 +787,43 @@
                     itemsByPrinter[printer].push(item);
                 }
 
-                // Construir jobs: { host, printer, data }
-                const jobs = [];
+                // Construir todos los print jobs
+                const allJobs = [];
                 for (const [printer, items] of Object.entries(itemsByPrinter)) {
                     if (printer !== PRINTERS.BARRA) {
-                        jobs.push({ host: PRINTER_HOST_MAP[printer], printer, data: buildKitchenTicketData(items, order.order_number, deliveryInfo) });
+                        allJobs.push({ printer, data: buildKitchenTicketData(items, order.order_number, deliveryInfo) });
                     }
                 }
-                jobs.push({ host: PRINTER_HOST_MAP[PRINTERS.BARRA], printer: PRINTERS.BARRA, data: buildFullTicketData(order) });
+                allJobs.push({ printer: PRINTERS.BARRA, data: buildFullTicketData(order) });
 
-                // Agrupar por host
-                const jobsByHost = {};
-                for (const job of jobs) {
-                    if (!jobsByHost[job.host]) jobsByHost[job.host] = [];
-                    jobsByHost[job.host].push(job);
-                }
+                // Conectar a localhost (la PC donde estamos) e imprimir todo
+                // QZ Tray solo ve las impresoras instaladas en esa PC
+                // Si una impresora no existe en esta PC, QZ Tray dara error (se catchea)
+                if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                qz.security.setCertificatePromise(function(resolve) { resolve(); });
+                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
+                await qz.websocket.connect();
 
-                // Conectar a cada host secuencialmente
                 let printed = 0;
-                for (const [host, hostJobs] of Object.entries(jobsByHost)) {
-                    const connected = await connectQZHost(host);
-                    if (!connected) {
-                        showToast(`No se pudo conectar a QZ Tray en ${host}`, 'error');
-                        continue;
-                    }
-                    for (const job of hostJobs) {
+                for (const job of allJobs) {
+                    try {
                         const config = qz.configs.create(job.printer);
                         await qz.print(config, job.data);
                         printed++;
+                    } catch (printErr) {
+                        console.warn('No se pudo imprimir en ' + job.printer + ':', printErr.message);
+                        // Impresora no disponible en esta PC - normal si Minuta/Parrilla estan en otra PC
                     }
-                    await disconnectQZ();
                 }
 
-                if (printed > 0) showToast(`Pedido #${order.order_number} enviado a imprimir (${printed} tickets)`, 'success');
+                await disconnectQZ();
+
+                if (printed > 0) showToast(`Pedido #${order.order_number}: ${printed} ticket(s) impresos`, 'success');
+                else showToast('No se pudo imprimir en ninguna impresora', 'error');
+
+                // TODO: Para imprimir en la otra PC, se necesita QZ Tray configurado para aceptar conexiones remotas
+                // o instalar caja en ambas PCs
+
             } catch (e) {
                 console.error('Error imprimiendo:', e);
                 showToast('Error al imprimir: ' + e.message, 'error');
