@@ -82,6 +82,7 @@
                 </div>
             </div>
             <div class="flex items-center space-x-3">
+                <button onclick="openCierreCaja()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition">CIERRE DE CAJA</button>
                 <button onclick="diagnosticQZ()" class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2 hover:bg-gray-700 transition cursor-pointer" id="qz-status" title="Click para diagnostico QZ Tray">
                     <span id="qz-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
                     <span class="text-xs" id="qz-label">QZ Tray</span>
@@ -120,6 +121,26 @@
                     <div id="col-ready" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal Cierre de Caja -->
+    <div id="modal-cierre" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-60" onclick="closeCierreCaja()"></div>
+        <div class="absolute inset-4 md:inset-8 bg-white rounded-2xl shadow-2xl overflow-y-auto z-10">
+            <div class="sticky top-0 bg-gray-900 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <h2 class="text-xl font-bold">Cierre de Caja</h2>
+                <div class="flex items-center space-x-3">
+                    <select id="cierre-turno" onchange="renderCierre()" class="bg-gray-800 text-white text-sm rounded-lg px-3 py-1.5 border border-gray-700">
+                        <option value="all">Todo el dia</option>
+                        <option value="noon">Mediodia (11-16hs)</option>
+                        <option value="night">Noche (18-01hs)</option>
+                    </select>
+                    <button onclick="printCierreCaja()" class="bg-white text-gray-900 text-sm font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition">Imprimir</button>
+                    <button onclick="closeCierreCaja()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+                </div>
+            </div>
+            <div id="cierre-content" class="p-6"></div>
         </div>
     </div>
 
@@ -440,10 +461,8 @@
 
             // Payment method
             const payLabels = {
-                'mercadopago': '💳 MP',
-                'cash': '💵 Efectivo',
-                'transfer': '🏦 Transfer',
-                'efectivo': '💵 Efectivo'
+                'cash': '💵 Efectivo', 'mercadopago': '💳 MP', 'transfer': '🏦 Transfer',
+                'debit_card': '💳 Debito', 'credit_card': '💳 Credito', 'qr': '📱 QR', 'prepaid_card': '💳 Prepaga'
             };
             const payLabel = payLabels[order.payment_method] || order.payment_method || '';
 
@@ -503,13 +522,21 @@
                 <!-- Footer -->
                 <div class="border-t border-gray-100 px-3 py-2 bg-gray-50">
                     <div class="flex items-center justify-between mb-2">
-                        <div>
+                        <div class="flex items-center space-x-1">
                             <span class="font-bold text-orange-600">${total}</span>
                             ${deliveryFeeHTML}
-                            <span class="text-xs text-gray-400 ml-1">${payLabel}</span>
                         </div>
-                        ${customerPhone ? `<span class="text-xs text-gray-400">Tel: ${customerPhone}</span>` : ''}
+                        <select onchange="updatePaymentMethod('${order.id}', this.value)" class="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white">
+                            <option value="cash" ${order.payment_method === 'cash' ? 'selected' : ''}>Efectivo</option>
+                            <option value="debit_card" ${order.payment_method === 'debit_card' ? 'selected' : ''}>Tarj. Debito</option>
+                            <option value="credit_card" ${order.payment_method === 'credit_card' ? 'selected' : ''}>Tarj. Credito</option>
+                            <option value="mercadopago" ${order.payment_method === 'mercadopago' ? 'selected' : ''}>Mercado Pago</option>
+                            <option value="qr" ${order.payment_method === 'qr' ? 'selected' : ''}>QR</option>
+                            <option value="prepaid_card" ${order.payment_method === 'prepaid_card' ? 'selected' : ''}>Prepaga</option>
+                            <option value="transfer" ${order.payment_method === 'transfer' ? 'selected' : ''}>Transferencia</option>
+                        </select>
                     </div>
+                    ${customerPhone ? `<div class="text-xs text-gray-400 mb-1">Tel: ${customerPhone}</div>` : ''}
                     <div class="flex items-center space-x-2">
                         ${actionBtn}
                         <button onclick="printOrder('${order.id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg transition" title="Imprimir">🖨️</button>
@@ -827,6 +854,267 @@
             } catch (e) {
                 console.error('Error imprimiendo:', e);
                 showToast('Error al imprimir: ' + e.message, 'error');
+                await disconnectQZ();
+            }
+        }
+
+        // ==================== PAGO ====================
+        async function updatePaymentMethod(orderId, method) {
+            try {
+                await db.from('orders').update({ payment_method: method, updated_at: new Date().toISOString() }).eq('id', orderId);
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) allOrders[idx].payment_method = method;
+                updateStats();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+
+        // ==================== CIERRE DE CAJA ====================
+        const PAY_LABELS = {
+            'cash': 'Efectivo', 'debit_card': 'Tarj. Debito', 'credit_card': 'Tarj. Credito',
+            'mercadopago': 'Mercado Pago', 'qr': 'QR', 'prepaid_card': 'Prepaga', 'transfer': 'Transferencia'
+        };
+        const PAY_ICONS = {
+            'cash': '💵', 'debit_card': '💳', 'credit_card': '💳',
+            'mercadopago': '📲', 'qr': '📱', 'prepaid_card': '💳', 'transfer': '🏦'
+        };
+
+        async function openCierreCaja() {
+            document.getElementById('modal-cierre').classList.remove('hidden');
+            renderCierre();
+        }
+
+        function closeCierreCaja() {
+            document.getElementById('modal-cierre').classList.add('hidden');
+        }
+
+        function getCierreOrders() {
+            const turno = document.getElementById('cierre-turno').value;
+            // Filter only completed orders (not cancelled or pending)
+            let orders = allOrders.filter(o => o.status !== 'cancelled');
+
+            if (turno === 'noon') {
+                orders = orders.filter(o => {
+                    const h = new Date(o.created_at).getHours();
+                    return h >= 11 && h < 16;
+                });
+            } else if (turno === 'night') {
+                orders = orders.filter(o => {
+                    const h = new Date(o.created_at).getHours();
+                    return h >= 18 || h < 2;
+                });
+            }
+            return orders;
+        }
+
+        function renderCierre() {
+            const orders = getCierreOrders();
+            const delivered = orders.filter(o => o.status === 'delivered');
+            const active = orders.filter(o => o.status !== 'delivered');
+
+            const totalVentas = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+            const totalDeliveryFees = orders.reduce((s, o) => s + parseFloat(o.delivery_fee || 0), 0);
+            const totalDiscounts = orders.reduce((s, o) => s + parseFloat(o.discount || 0), 0);
+            const count = orders.length;
+            const avg = count > 0 ? Math.round(totalVentas / count) : 0;
+
+            // By delivery type
+            const deliveryOrders = orders.filter(o => o.delivery_type === 'delivery');
+            const pickupOrders = orders.filter(o => o.delivery_type === 'pickup');
+            const deliveryTotal = deliveryOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+            const pickupTotal = pickupOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+
+            // By payment method
+            const byPayment = {};
+            for (const o of orders) {
+                const m = o.payment_method || 'cash';
+                if (!byPayment[m]) byPayment[m] = { count: 0, total: 0 };
+                byPayment[m].count++;
+                byPayment[m].total += parseFloat(o.total || 0);
+            }
+
+            // Top products
+            const productCount = {};
+            for (const o of orders) {
+                for (const item of (o.items || [])) {
+                    const name = item.name || 'Desconocido';
+                    if (!productCount[name]) productCount[name] = 0;
+                    productCount[name] += item.quantity || 1;
+                }
+            }
+            const topProducts = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+            const turnoLabel = document.getElementById('cierre-turno').selectedOptions[0].text;
+            const fecha = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+            const fmt = (n) => '$' + n.toLocaleString('es-AR');
+
+            document.getElementById('cierre-content').innerHTML = `
+                <div class="text-center mb-6">
+                    <p class="text-gray-500 text-sm">${fecha} - ${turnoLabel}</p>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                        <p class="text-green-600 text-sm font-medium">Total Ventas</p>
+                        <p class="text-2xl font-bold text-green-700">${fmt(totalVentas)}</p>
+                    </div>
+                    <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+                        <p class="text-orange-600 text-sm font-medium">Pedidos</p>
+                        <p class="text-2xl font-bold text-orange-700">${count}</p>
+                        <p class="text-xs text-gray-400">${delivered.length} entregados / ${active.length} en curso</p>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                        <p class="text-blue-600 text-sm font-medium">Ticket Promedio</p>
+                        <p class="text-2xl font-bold text-blue-700">${fmt(avg)}</p>
+                    </div>
+                    <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+                        <p class="text-purple-600 text-sm font-medium">Envios cobrados</p>
+                        <p class="text-2xl font-bold text-purple-700">${fmt(totalDeliveryFees)}</p>
+                        ${totalDiscounts > 0 ? `<p class="text-xs text-red-500">Desc: -${fmt(totalDiscounts)}</p>` : ''}
+                    </div>
+                </div>
+
+                <!-- Two columns -->
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <!-- By delivery type -->
+                    <div class="bg-gray-50 rounded-xl p-5">
+                        <h3 class="font-bold text-gray-700 mb-4">Por Tipo de Pedido</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">🚚</span>
+                                    <div>
+                                        <p class="font-semibold">Delivery</p>
+                                        <p class="text-xs text-gray-400">${deliveryOrders.length} pedidos</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-lg">${fmt(deliveryTotal)}</span>
+                            </div>
+                            <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">🏪</span>
+                                    <div>
+                                        <p class="font-semibold">Mostrador / Retira</p>
+                                        <p class="text-xs text-gray-400">${pickupOrders.length} pedidos</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-lg">${fmt(pickupTotal)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- By payment method -->
+                    <div class="bg-gray-50 rounded-xl p-5">
+                        <h3 class="font-bold text-gray-700 mb-4">Por Medio de Pago</h3>
+                        <div class="space-y-2">
+                            ${Object.entries(byPayment).sort((a, b) => b[1].total - a[1].total).map(([method, data]) => `
+                                <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                                    <div class="flex items-center space-x-2">
+                                        <span>${PAY_ICONS[method] || '💰'}</span>
+                                        <div>
+                                            <p class="font-medium text-sm">${PAY_LABELS[method] || method}</p>
+                                            <p class="text-xs text-gray-400">${data.count} pedido${data.count > 1 ? 's' : ''}</p>
+                                        </div>
+                                    </div>
+                                    <span class="font-bold">${fmt(data.total)}</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(byPayment).length === 0 ? '<p class="text-gray-400 text-sm text-center py-4">Sin pedidos</p>' : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Products -->
+                ${topProducts.length > 0 ? `
+                <div class="bg-gray-50 rounded-xl p-5">
+                    <h3 class="font-bold text-gray-700 mb-4">Productos mas vendidos</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        ${topProducts.map(([name, qty], i) => `
+                            <div class="bg-white rounded-lg p-3 border text-center">
+                                <p class="font-bold text-orange-600">${qty}</p>
+                                <p class="text-xs text-gray-600 truncate" title="${name}">${name}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+            `;
+        }
+
+        async function printCierreCaja() {
+            try {
+                if (typeof qz === 'undefined') { showToast('QZ Tray no disponible', 'error'); return; }
+                if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                qz.security.setCertificatePromise(function(resolve) { resolve(); });
+                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
+                await qz.websocket.connect();
+
+                const orders = getCierreOrders();
+                const totalVentas = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+                const totalDeliveryFees = orders.reduce((s, o) => s + parseFloat(o.delivery_fee || 0), 0);
+                const totalDiscounts = orders.reduce((s, o) => s + parseFloat(o.discount || 0), 0);
+                const deliveryOrders = orders.filter(o => o.delivery_type === 'delivery');
+                const pickupOrders = orders.filter(o => o.delivery_type === 'pickup');
+                const deliveryTotal = deliveryOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+                const pickupTotal = pickupOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+
+                const byPayment = {};
+                for (const o of orders) {
+                    const m = o.payment_method || 'cash';
+                    if (!byPayment[m]) byPayment[m] = { count: 0, total: 0 };
+                    byPayment[m].count++;
+                    byPayment[m].total += parseFloat(o.total || 0);
+                }
+
+                const turnoLabel = document.getElementById('cierre-turno').selectedOptions[0].text;
+                const fecha = new Date().toLocaleDateString('es-AR');
+                const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                const fmt = (n) => '$' + n.toLocaleString('es-AR');
+
+                const data = [
+                    '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30',
+                    'CIERRE DE CAJA\n',
+                    '\x1B\x21\x00',
+                    '7TRES7 Restaurant\n',
+                    `${fecha} - ${turnoLabel}\n`,
+                    `Impreso: ${hora}\n`,
+                    '================================\n',
+                    '\x1B\x61\x00',
+                    '\x1B\x21\x10',
+                    `${'TOTAL VENTAS:'.padEnd(20)}${fmt(totalVentas).padStart(12)}\n`,
+                    '\x1B\x21\x00',
+                    `${'Pedidos:'.padEnd(20)}${String(orders.length).padStart(12)}\n`,
+                    `${'Ticket promedio:'.padEnd(20)}${fmt(orders.length > 0 ? Math.round(totalVentas / orders.length) : 0).padStart(12)}\n`,
+                    '--------------------------------\n',
+                    'POR TIPO DE PEDIDO:\n',
+                    `${'  Delivery:'.padEnd(20)}${fmt(deliveryTotal).padStart(12)}\n`,
+                    `${'    (pedidos)'.padEnd(20)}${String(deliveryOrders.length).padStart(12)}\n`,
+                    `${'  Mostrador:'.padEnd(20)}${fmt(pickupTotal).padStart(12)}\n`,
+                    `${'    (pedidos)'.padEnd(20)}${String(pickupOrders.length).padStart(12)}\n`,
+                    '--------------------------------\n',
+                    'POR MEDIO DE PAGO:\n'
+                ];
+
+                for (const [method, d] of Object.entries(byPayment).sort((a, b) => b[1].total - a[1].total)) {
+                    const label = '  ' + (PAY_LABELS[method] || method) + ':';
+                    data.push(`${label.padEnd(20)}${fmt(d.total).padStart(12)}\n`);
+                    data.push(`${'    (pedidos)'.padEnd(20)}${String(d.count).padStart(12)}\n`);
+                }
+
+                data.push('--------------------------------\n');
+                if (totalDeliveryFees > 0) data.push(`${'Envios cobrados:'.padEnd(20)}${fmt(totalDeliveryFees).padStart(12)}\n`);
+                if (totalDiscounts > 0) data.push(`${'Descuentos:'.padEnd(20)}${('-' + fmt(totalDiscounts)).padStart(12)}\n`);
+                data.push('================================\n');
+                data.push('\x1B\x61\x01', 'Cierre generado por 7Tres7 Caja\n');
+                data.push('\n\n\n', '\x1D\x56\x00');
+
+                const config = qz.configs.create(PRINTERS.BARRA);
+                await qz.print(config, data);
+                await disconnectQZ();
+                showToast('Cierre impreso', 'success');
+            } catch (e) {
+                console.error('Error imprimiendo cierre:', e);
+                showToast('Error: ' + e.message, 'error');
                 await disconnectQZ();
             }
         }
