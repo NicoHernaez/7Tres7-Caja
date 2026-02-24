@@ -163,7 +163,7 @@
             if (session && !appInitialized) {
                 const email = session.user.email;
 
-                if (!AUTHORIZED_EMAILS.includes(email)) {
+                if (!AUTHORIZED_EMAILS.includes(email.toLowerCase())) {
                     await db.auth.signOut();
                     loading.classList.add('hidden');
                     error.textContent = 'Acceso denegado. El email ' + email + ' no esta autorizado.';
