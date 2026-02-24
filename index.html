@@ -209,7 +209,7 @@
                 const { error: authError } = await db.auth.signInWithOAuth({
                     provider: 'google',
                     options: {
-                        redirectTo: window.location.origin + '/'
+                        redirectTo: 'https://7-tres7-caja.vercel.app'
                     }
                 });
                 if (authError) throw authError;
