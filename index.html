@@ -33,6 +33,8 @@
 
         /* Tab active */
         .tab-btn.active { background: #111827; color: white; }
+        .mother-tab.active { color: white; border-bottom-color: #fb923c; }
+        .sub-tab.active { background: #111827; color: white; }
 
         /* Animate pulse for late timers */
         .timer-pulse { animation: pulse 1.5s infinite; }
@@ -103,26 +105,26 @@
             </div>
         </header>
 
-        <!-- Filter Bar -->
-        <div class="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between flex-shrink-0" style="min-height:44px;">
-            <div class="flex items-center space-x-1" id="tab-bar">
-                <button class="tab-btn active text-sm font-medium px-3 py-1.5 rounded-lg transition" onclick="switchTab('active')" data-tab="active">Activos (<span id="tab-count-active">0</span>)</button>
-                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('pending')" data-tab="pending">Pendientes (<span id="tab-count-pending">0</span>)</button>
-                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('preparing')" data-tab="preparing">Cocina (<span id="tab-count-preparing">0</span>)</button>
-                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('ready')" data-tab="ready">Listos (<span id="tab-count-ready">0</span>)</button>
-                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('delivered')" data-tab="delivered">Entregados (<span id="tab-count-delivered">0</span>)</button>
-                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('cancelled')" data-tab="cancelled">Cancelados (<span id="tab-count-cancelled">0</span>)</button>
+        <!-- Mother Tabs (type of service) -->
+        <div class="bg-gray-800 px-4 py-0 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center space-x-0" id="mother-tab-bar">
+                <button class="mother-tab active text-sm font-bold px-5 py-2.5 text-white border-b-2 border-orange-400 transition" onclick="switchMotherTab('todos')" data-mtab="todos">Todos</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-400 border-b-2 border-transparent hover:text-white transition" onclick="switchMotherTab('mostrador')" data-mtab="mostrador">🏪 Mostrador</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-400 border-b-2 border-transparent hover:text-white transition" onclick="switchMotherTab('delivery')" data-mtab="delivery">🚚 Delivery</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-500 border-b-2 border-transparent cursor-default opacity-50" disabled>🍽️ Salon</button>
             </div>
             <div class="flex items-center space-x-2">
                 <div class="relative">
-                    <input type="text" id="search-input" class="border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400" placeholder="Buscar # o nombre..." oninput="onSearchInput(this.value)" title="F2">
+                    <input type="text" id="search-input" class="bg-gray-700 border border-gray-600 text-white rounded-lg pl-8 pr-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder-gray-400" placeholder="Buscar # o nombre..." oninput="onSearchInput(this.value)" title="F2">
                     <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
-                <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm bg-gray-900 text-white" onclick="setDeliveryFilter('all')" data-filter="all">All</button>
-                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onclick="setDeliveryFilter('delivery')" data-filter="delivery">🚚</button>
-                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onclick="setDeliveryFilter('pickup')" data-filter="pickup">🏪</button>
-                </div>
+            </div>
+        </div>
+
+        <!-- Sub Tabs (status within service type) -->
+        <div class="bg-white border-b border-gray-200 px-4 py-1.5 flex items-center flex-shrink-0" style="min-height:40px;">
+            <div class="flex items-center space-x-1" id="sub-tab-bar">
+                <!-- Rendered dynamically by renderSubTabs() -->
             </div>
         </div>
 
@@ -218,11 +220,11 @@
         let realtimeChannel = null;
         let knownOrderIds = new Set();
 
-        // New state
+        // UI state
         let selectedOrderId = null;
-        let activeTab = 'active';
+        let motherTab = 'todos';   // 'todos', 'mostrador', 'delivery'
+        let subTab = 'active';     // 'active', 'pending', 'preparing', 'ready', 'delivering', 'delivered', 'cancelled'
         let searchQuery = '';
-        let deliveryFilter = 'all';
         let productsCache = [];
         let addItemOrderId = null;
         let deletingItemIndex = null; // Track which item is showing delete reason UI
@@ -453,12 +455,33 @@
         }
 
         // ==================== TIME HELPERS ====================
-        function getTimeInfo(createdAt) {
-            const minutes = Math.floor((Date.now() - new Date(createdAt)) / 60000);
-            if (minutes < 10) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', border: 'border-l-green-400', pulse: false };
-            if (minutes < 20) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-l-yellow-400', pulse: false };
-            if (minutes < 30) return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-l-orange-400', pulse: false };
-            return { label: minutes + 'm', color: 'text-red-600 font-bold', bg: 'bg-red-50', border: 'border-l-red-500', pulse: true };
+        // Timer: for preparing+ orders, clock starts at confirmed_at
+        // Late threshold: 40min for delivery, no late for pickup (their problem)
+        function getTimeInfo(order) {
+            // For pending orders, show time since creation
+            const ref = order.status === 'pending' ? order.created_at : (order.confirmed_at || order.created_at);
+            const minutes = Math.floor((Date.now() - new Date(ref)) / 60000);
+            const isDelivery = order.delivery_type === 'delivery';
+            const lateThreshold = 40; // minutes
+
+            if (order.status === 'pending') {
+                // Pending: just show wait time, yellow if > 5min
+                if (minutes < 5) return { label: minutes + 'm', color: 'text-gray-500', bg: 'bg-gray-50', pulse: false, minutes };
+                return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: minutes > 10, minutes };
+            }
+
+            // For delivery orders: green < 20m, yellow < 30m, orange < 40m, red >= 40m
+            if (isDelivery) {
+                if (minutes < 20) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', pulse: false, minutes };
+                if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: false, minutes };
+                if (minutes < lateThreshold) return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', pulse: false, minutes };
+                return { label: minutes + 'm', color: 'text-red-600 font-bold', bg: 'bg-red-50', pulse: true, minutes };
+            }
+
+            // For mostrador: green < 20m, yellow < 30m, orange after. No red (their problem).
+            if (minutes < 20) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', pulse: false, minutes };
+            if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: false, minutes };
+            return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', pulse: false, minutes };
         }
 
         function getElapsedLabel(fromDate) {
@@ -480,66 +503,107 @@
             return '$' + parseFloat(n || 0).toLocaleString('es-AR');
         }
 
-        // ==================== FILTER & TAB LOGIC ====================
-        function switchTab(tab) {
-            activeTab = tab;
-            // Reset selection when changing tabs
-            // selectedOrderId = null; // Keep selection if order is in new tab too
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-                btn.classList.add('text-gray-600', 'hover:bg-gray-100');
-            });
-            const activeBtn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-                activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+        // ==================== MOTHER TAB & SUB TAB LOGIC ====================
+
+        // Orders filtered by mother tab (delivery type)
+        function getMotherOrders() {
+            if (motherTab === 'mostrador') return allOrders.filter(o => o.delivery_type === 'pickup');
+            if (motherTab === 'delivery') return allOrders.filter(o => o.delivery_type === 'delivery');
+            return allOrders; // 'todos'
+        }
+
+        // Sub tabs depend on mother tab
+        function getSubTabDefs() {
+            const mo = getMotherOrders();
+            if (motherTab === 'mostrador') {
+                return [
+                    { id: 'active', label: 'Activos', filter: o => ['pending','confirmed','preparing','ready'].includes(o.status) },
+                    { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
+                    { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
+                    { id: 'ready', label: 'Listos', filter: o => o.status === 'ready' },
+                    { id: 'delivered', label: 'Entregados', filter: o => o.status === 'delivered' },
+                    { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
+                ];
             }
+            if (motherTab === 'delivery') {
+                return [
+                    { id: 'active', label: 'Activos', filter: o => ['pending','confirmed','preparing','ready','delivering'].includes(o.status) },
+                    { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
+                    { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
+                    { id: 'ready', label: 'Listos', filter: o => o.status === 'ready' },
+                    { id: 'delivering', label: 'Enviados', filter: o => o.status === 'delivering' },
+                    { id: 'delivered', label: 'Entregados', filter: o => o.status === 'delivered' },
+                    { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
+                ];
+            }
+            // todos
+            return [
+                { id: 'active', label: 'Activos', filter: o => ['pending','confirmed','preparing','ready','delivering'].includes(o.status) },
+                { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
+                { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
+                { id: 'ready', label: 'Listos', filter: o => o.status === 'ready' },
+                { id: 'delivering', label: 'Enviados', filter: o => o.status === 'delivering' },
+                { id: 'delivered', label: 'Entregados', filter: o => o.status === 'delivered' },
+                { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
+            ];
+        }
+
+        function renderSubTabs() {
+            const defs = getSubTabDefs();
+            const mo = getMotherOrders();
+            const bar = document.getElementById('sub-tab-bar');
+            bar.innerHTML = defs.map(d => {
+                const count = mo.filter(d.filter).length;
+                const isActive = subTab === d.id;
+                return `<button class="sub-tab ${isActive ? 'active' : ''} text-sm font-medium px-3 py-1 rounded-lg transition ${isActive ? '' : 'text-gray-600 hover:bg-gray-100'}" onclick="switchSubTab('${d.id}')" data-stab="${d.id}">${d.label} (${count})</button>`;
+            }).join('');
+        }
+
+        function switchMotherTab(tab) {
+            motherTab = tab;
+            // Update mother tab UI
+            document.querySelectorAll('.mother-tab').forEach(btn => {
+                if (btn.dataset.mtab === tab) {
+                    btn.classList.add('active');
+                    btn.classList.remove('text-gray-400');
+                    btn.style.borderBottomColor = '#fb923c';
+                } else if (!btn.disabled) {
+                    btn.classList.remove('active');
+                    btn.classList.add('text-gray-400');
+                    btn.style.borderBottomColor = 'transparent';
+                }
+            });
+            // Reset sub tab to 'active' if current sub tab doesn't exist
+            const defs = getSubTabDefs();
+            if (!defs.find(d => d.id === subTab)) subTab = 'active';
+            renderSubTabs();
             renderOrderList();
             renderOrderDetail();
         }
+
+        function switchSubTab(tab) {
+            subTab = tab;
+            renderSubTabs();
+            renderOrderList();
+            renderOrderDetail();
+        }
+
+        // Keep backward compat alias
+        function switchTab(tab) { switchSubTab(tab); }
 
         function onSearchInput(val) {
             searchQuery = val.trim().toLowerCase();
             renderOrderList();
         }
 
-        function setDeliveryFilter(filter) {
-            deliveryFilter = filter;
-            document.querySelectorAll('.delivery-filter-btn').forEach(btn => {
-                if (btn.dataset.filter === filter) {
-                    btn.classList.add('bg-gray-900', 'text-white');
-                    btn.classList.remove('text-gray-600', 'hover:bg-gray-100');
-                } else {
-                    btn.classList.remove('bg-gray-900', 'text-white');
-                    btn.classList.add('text-gray-600', 'hover:bg-gray-100');
-                }
-            });
-            renderOrderList();
-        }
-
         function getFilteredOrders() {
-            let orders = [...allOrders];
+            let orders = getMotherOrders();
 
-            // Tab filter
-            if (activeTab === 'active') {
-                orders = orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status));
-            } else if (activeTab === 'pending') {
-                orders = orders.filter(o => o.status === 'pending');
-            } else if (activeTab === 'preparing') {
-                orders = orders.filter(o => o.status === 'confirmed' || o.status === 'preparing');
-            } else if (activeTab === 'ready') {
-                orders = orders.filter(o => o.status === 'ready');
-            } else if (activeTab === 'delivered') {
-                orders = orders.filter(o => o.status === 'delivered');
-            } else if (activeTab === 'cancelled') {
-                orders = orders.filter(o => o.status === 'cancelled');
-            }
-
-            // Delivery filter
-            if (deliveryFilter === 'delivery') {
-                orders = orders.filter(o => o.delivery_type === 'delivery');
-            } else if (deliveryFilter === 'pickup') {
-                orders = orders.filter(o => o.delivery_type === 'pickup');
+            // Sub tab filter
+            const defs = getSubTabDefs();
+            const activeDef = defs.find(d => d.id === subTab);
+            if (activeDef) {
+                orders = orders.filter(activeDef.filter);
             }
 
             // Search filter
@@ -553,46 +617,29 @@
             }
 
             // Sorting
-            if (activeTab === 'delivered') {
+            if (subTab === 'delivered') {
                 orders.sort((a, b) => new Date(b.delivered_at || b.created_at) - new Date(a.delivered_at || a.created_at));
-            } else if (activeTab === 'cancelled') {
+            } else if (subTab === 'cancelled') {
                 orders.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
             } else {
-                // Active/pending/preparing/ready: oldest first (most urgent on top)
+                // Active orders: oldest first (most urgent on top)
                 orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
             }
 
             return orders;
         }
 
-        // ==================== TAB COUNTS ====================
-        function updateTabCounts() {
-            const active = allOrders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length;
-            const pending = allOrders.filter(o => o.status === 'pending').length;
-            const preparing = allOrders.filter(o => o.status === 'confirmed' || o.status === 'preparing').length;
-            const ready = allOrders.filter(o => o.status === 'ready').length;
-            const delivered = allOrders.filter(o => o.status === 'delivered').length;
-            const cancelled = allOrders.filter(o => o.status === 'cancelled').length;
-
-            document.getElementById('tab-count-active').textContent = active;
-            document.getElementById('tab-count-pending').textContent = pending;
-            document.getElementById('tab-count-preparing').textContent = preparing;
-            document.getElementById('tab-count-ready').textContent = ready;
-            document.getElementById('tab-count-delivered').textContent = delivered;
-            document.getElementById('tab-count-cancelled').textContent = cancelled;
-        }
-
         // ==================== RENDER ORDER LIST ====================
         function renderOrderList() {
-            updateTabCounts();
+            renderSubTabs();
             const orders = getFilteredOrders();
             const container = document.getElementById('order-list');
 
             if (orders.length === 0) {
-                const emojis = { active: '📋', pending: '⏳', preparing: '🍳', ready: '✅', delivered: '📦', cancelled: '❌' };
+                const emojis = { active: '📋', pending: '⏳', preparing: '🍳', ready: '✅', delivering: '🚚', delivered: '📦', cancelled: '❌' };
                 container.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-64 text-gray-400">
-                        <span class="text-4xl mb-3">${emojis[activeTab] || '📋'}</span>
+                        <span class="text-4xl mb-3">${emojis[subTab] || '📋'}</span>
                         <span class="text-sm">Sin pedidos${searchQuery ? ' para "' + searchQuery + '"' : ''}</span>
                     </div>`;
                 return;
@@ -612,17 +659,18 @@
             if (order.status === 'pending') borderColor = 'border-l-yellow-400';
             else if (order.status === 'confirmed' || order.status === 'preparing') borderColor = 'border-l-orange-400';
             else if (order.status === 'ready') borderColor = 'border-l-green-400';
+            else if (order.status === 'delivering') borderColor = 'border-l-blue-400';
             else if (order.status === 'delivered') borderColor = 'border-l-gray-300';
             else if (order.status === 'cancelled') borderColor = 'border-l-red-400';
 
             // Time info
-            const isActive = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
+            const isActive = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
             let timeHTML = '';
             let isLate = false;
             if (isActive) {
-                const ti = getTimeInfo(order.created_at);
+                const ti = getTimeInfo(order);
                 isLate = ti.pulse;
-                timeHTML = `<span class="text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}" data-created-at="${order.created_at}">${ti.label}</span>`;
+                timeHTML = `<span class="text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}" data-order-id="${order.id}">${ti.label}</span>`;
             } else if (order.status === 'delivered') {
                 const deliveredTime = formatTime(order.delivered_at);
                 timeHTML = `<span class="text-xs text-gray-400 w-14 text-center">${deliveredTime || '✅'}</span>`;
@@ -630,13 +678,17 @@
                 timeHTML = `<span class="text-xs text-red-400 w-14 text-center">✕</span>`;
             }
 
-            // Quick action button
+            // Quick action button - contextual by status and delivery type
             let quickBtn = '';
             if (order.status === 'pending') {
                 quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">CONFIRMAR</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 quickBtn = `<button onclick="event.stopPropagation(); markReady('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-purple-500 text-white hover:bg-purple-600 w-24 transition">LISTO</button>`;
-            } else if (order.status === 'ready') {
+            } else if (order.status === 'ready' && isDelivery) {
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivering('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 w-24 transition">ENVIADO</button>`;
+            } else if (order.status === 'ready' && !isDelivery) {
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">ENTREGADO</button>`;
+            } else if (order.status === 'delivering') {
                 quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">ENTREGADO</button>`;
             }
 
@@ -694,16 +746,17 @@
                 'confirmed': { label: 'CONFIRMADO', bg: 'bg-blue-100', text: 'text-blue-800' },
                 'preparing': { label: 'PREPARANDO', bg: 'bg-orange-100', text: 'text-orange-800' },
                 'ready': { label: 'LISTO', bg: 'bg-green-100', text: 'text-green-800' },
+                'delivering': { label: 'ENVIADO', bg: 'bg-blue-100', text: 'text-blue-800' },
                 'delivered': { label: 'ENTREGADO', bg: 'bg-gray-100', text: 'text-gray-600' },
                 'cancelled': { label: 'CANCELADO', bg: 'bg-red-100', text: 'text-red-800' }
             };
             const st = statusMap[order.status] || statusMap['pending'];
 
-            // Time info
-            const isActive = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
+            // Time info - shows timer for active orders
+            const isActive = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
             let timeSection = '';
             if (isActive) {
-                const ti = getTimeInfo(order.created_at);
+                const ti = getTimeInfo(order);
                 timeSection = `<span class="text-lg font-bold ${ti.color} ${ti.pulse ? 'timer-pulse' : ''}">${ti.label}</span>`;
             }
 
@@ -734,7 +787,7 @@
                         </div>`;
                 }
 
-                const isEditable = order.status !== 'delivered' && order.status !== 'cancelled';
+                const isEditable = !['delivered', 'cancelled', 'delivering'].includes(order.status);
 
                 return `
                 <div class="py-2 ${idx > 0 ? 'border-t border-gray-100' : ''}">
@@ -763,13 +816,17 @@
             const discount = parseFloat(order.discount || 0);
             const total = parseFloat(order.total || 0);
 
-            // Main action button
+            // Main action button - contextual by status and delivery type
             let mainActionHTML = '';
             if (order.status === 'pending') {
                 mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ CONFIRMAR PEDIDO</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-purple-500 hover:bg-purple-600 transition">✓ MARCAR LISTO</button>`;
-            } else if (order.status === 'ready') {
+            } else if (order.status === 'ready' && isDelivery) {
+                mainActionHTML = `<button onclick="markDelivering('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-blue-500 hover:bg-blue-600 transition">🚚 MARCAR ENVIADO</button>`;
+            } else if (order.status === 'ready' && !isDelivery) {
+                mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ MARCAR ENTREGADO</button>`;
+            } else if (order.status === 'delivering') {
                 mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ MARCAR ENTREGADO</button>`;
             }
 
@@ -779,6 +836,7 @@
             if (order.created_at) timelineSteps.push({ label: 'Creado', time: order.created_at });
             if (order.confirmed_at) timelineSteps.push({ label: 'Confirmado', time: order.confirmed_at });
             if (order.ready_at) timelineSteps.push({ label: 'Listo', time: order.ready_at });
+            if (order.delivering_at) timelineSteps.push({ label: 'Enviado', time: order.delivering_at });
             if (order.delivered_at) timelineSteps.push({ label: 'Entregado', time: order.delivered_at });
 
             timelineHTML = timelineSteps.map(s => {
@@ -788,7 +846,7 @@
                 </div>`;
             }).join('');
 
-            const canEdit = order.status !== 'delivered' && order.status !== 'cancelled';
+            const canEdit = !['delivered', 'cancelled', 'delivering'].includes(order.status);
 
             container.innerHTML = `
             <div class="detail-enter">
@@ -881,6 +939,8 @@
         function order_whatsapp_event(status) {
             if (status === 'pending') return 'confirmed';
             if (status === 'confirmed' || status === 'preparing') return 'ready';
+            if (status === 'ready') return 'delivering';
+            if (status === 'delivering') return 'delivering';
             return 'ready';
         }
 
@@ -1115,11 +1175,13 @@
             document.getElementById('stat-count').textContent = count;
             document.getElementById('stat-avg').textContent = fmt(avg);
 
-            // Late orders badge
+            // Late orders badge - only delivery orders > 40min since confirmed
             const lateOrders = allOrders.filter(o => {
-                if (!['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)) return false;
-                const minutes = Math.floor((Date.now() - new Date(o.created_at)) / 60000);
-                return minutes >= 30;
+                if (o.delivery_type !== 'delivery') return false;
+                if (!['confirmed', 'preparing', 'ready', 'delivering'].includes(o.status)) return false;
+                const ref = o.confirmed_at || o.created_at;
+                const minutes = Math.floor((Date.now() - new Date(ref)) / 60000);
+                return minutes >= 40;
             });
 
             const badge = document.getElementById('late-badge');
@@ -1194,6 +1256,35 @@
             }
         }
 
+        async function markDelivering(orderId) {
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'delivering',
+                    delivering_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                showToast('Pedido enviado', 'success');
+
+                // Notificar cliente por WhatsApp
+                notifyCustomerWhatsApp(orderId, 'delivering');
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'delivering';
+                    allOrders[idx].delivering_at = new Date().toISOString();
+                    allOrders[idx].updated_at = new Date().toISOString();
+                    renderOrderList();
+                    renderOrderDetail();
+                }
+            } catch (e) {
+                console.error('Error updating order:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
         async function markDelivered(orderId) {
             try {
                 const { error } = await db.from('orders').update({
@@ -1225,9 +1316,12 @@
             if (!selectedOrderId) return;
             const order = allOrders.find(o => o.id === selectedOrderId);
             if (!order) return;
+            const isDelivery = order.delivery_type === 'delivery';
             if (order.status === 'pending') confirmOrder(order.id);
             else if (order.status === 'confirmed' || order.status === 'preparing') markReady(order.id);
-            else if (order.status === 'ready') markDelivered(order.id);
+            else if (order.status === 'ready' && isDelivery) markDelivering(order.id);
+            else if (order.status === 'ready' && !isDelivery) markDelivered(order.id);
+            else if (order.status === 'delivering') markDelivered(order.id);
         }
 
         // ==================== QZ TRAY ====================
@@ -1776,7 +1870,9 @@
                 } else if (event === 'ready') {
                     msg = order.delivery_type === 'pickup'
                         ? `Hola ${name}! Tu pedido #${order.order_number} esta *listo para retirar*. Te esperamos en Calle 18 N 737. Gracias!`
-                        : `Hola ${name}! Tu pedido #${order.order_number} esta *listo* y sale en camino. Gracias por elegir 7Tres7!`;
+                        : `Hola ${name}! Tu pedido #${order.order_number} esta *listo* y sale en un ratito. Gracias por elegir 7Tres7!`;
+                } else if (event === 'delivering') {
+                    msg = `Hola ${name}! Tu pedido #${order.order_number} ya *salio en camino*! Llegamos en breve. Gracias por elegir 7Tres7!`;
                 }
 
                 if (msg) window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -1806,19 +1902,20 @@
         // ==================== TIMER UPDATE ====================
         setInterval(() => {
             if (!appInitialized) return;
-            // Update all visible timers in order list
-            document.querySelectorAll('[data-created-at]').forEach(el => {
-                const ti = getTimeInfo(el.dataset.createdAt);
+            // Update all visible timers using order data
+            document.querySelectorAll('[data-order-id]').forEach(el => {
+                const order = allOrders.find(o => o.id === el.dataset.orderId);
+                if (!order) return;
+                const ti = getTimeInfo(order);
                 el.textContent = ti.label;
                 el.className = `text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}`;
             });
-            // Update late badge
+            // Update late badge & stats
             updateStats();
             // Update detail panel time if showing an active order
             if (selectedOrderId) {
                 const order = allOrders.find(o => o.id === selectedOrderId);
-                if (order && ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)) {
-                    // Re-render detail to update elapsed time
+                if (order && ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status)) {
                     renderOrderDetail();
                 }
             }
