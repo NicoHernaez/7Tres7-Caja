@@ -131,6 +131,12 @@
 
         // Printer config
         const PRINTERS = { BARRA: 'Barra', MINUTA: 'Minuta', PARRILLA: 'Parrilla Delivery' };
+        const QZ_HOSTS = { BARRA: '192.168.1.6', COCINA: '192.168.1.9' };
+        const PRINTER_HOST_MAP = {
+            [PRINTERS.BARRA]: QZ_HOSTS.BARRA,
+            [PRINTERS.MINUTA]: QZ_HOSTS.COCINA,
+            [PRINTERS.PARRILLA]: QZ_HOSTS.COCINA
+        };
         const CATEGORY_PRINTER_MAP = {
             'empanadas': PRINTERS.MINUTA, 'minutas': PRINTERS.MINUTA, 'pizzas': PRINTERS.MINUTA, 'postres': PRINTERS.MINUTA,
             'restaurant': PRINTERS.PARRILLA, 'pastas': PRINTERS.PARRILLA, 'carnes': PRINTERS.PARRILLA, 'parrilla': PRINTERS.PARRILLA,
@@ -611,33 +617,43 @@
         }
 
         // ==================== QZ TRAY ====================
-        async function connectQZ() {
+        async function connectQZHost(host) {
             try {
-                if (typeof qz === 'undefined') {
-                    updateQZStatus(false, 'No cargado');
-                    return false;
-                }
-
-                if (qzConnected && qz.websocket.isActive()) return true;
-
-                qz.security.setCertificatePromise(function(resolve) {
-                    resolve();
-                });
-                qz.security.setSignaturePromise(function(toSign) {
-                    return function(resolve) { resolve(); };
-                });
-
-                await qz.websocket.connect();
-                qzConnected = true;
-                updateQZStatus(true, 'Conectado');
-                console.log('QZ Tray conectado');
+                if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return false; }
+                if (qz.websocket.isActive()) await qz.websocket.disconnect();
+                qz.security.setCertificatePromise(function(resolve) { resolve(); });
+                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
+                await qz.websocket.connect({ host: host });
+                console.log('QZ Tray conectado a', host);
                 return true;
             } catch (e) {
-                qzConnected = false;
-                updateQZStatus(false, 'Desconectado');
-                console.warn('QZ Tray no disponible:', e.message);
+                console.warn('QZ Tray no disponible en ' + host + ':', e.message);
                 return false;
             }
+        }
+
+        async function disconnectQZ() {
+            try { if (typeof qz !== 'undefined' && qz.websocket.isActive()) await qz.websocket.disconnect(); } catch (e) {}
+        }
+
+        // Verificar conectividad con ambos hosts
+        async function checkQZStatus() {
+            if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return; }
+            let barraOk = false, cocinaOk = false;
+            try {
+                barraOk = await connectQZHost(QZ_HOSTS.BARRA);
+                await disconnectQZ();
+            } catch (e) {}
+            try {
+                cocinaOk = await connectQZHost(QZ_HOSTS.COCINA);
+                await disconnectQZ();
+            } catch (e) {}
+
+            if (barraOk && cocinaOk) updateQZStatus(true, 'Barra + Cocina');
+            else if (barraOk) updateQZStatus(true, 'Solo Barra');
+            else if (cocinaOk) updateQZStatus(true, 'Solo Cocina');
+            else updateQZStatus(false, 'Desconectado');
+            qzConnected = barraOk || cocinaOk;
         }
 
         function updateQZStatus(connected, label) {
@@ -647,12 +663,10 @@
             lbl.textContent = label || 'QZ Tray';
         }
 
-        // Retry QZ connection every 15s if not connected
+        // Check QZ status every 30s
         setInterval(async () => {
-            if (!qzConnected && appInitialized) {
-                await connectQZ();
-            }
-        }, 15000);
+            if (appInitialized) await checkQZStatus();
+        }, 30000);
 
         function getPrinterForCategory(cat) {
             return CATEGORY_PRINTER_MAP[(cat || '').toLowerCase().trim()] || PRINTERS.BARRA;
@@ -671,107 +685,65 @@
             return 'minutas';
         }
 
-        async function printKitchenTicket(printerName, items, orderNumber, deliveryInfo) {
-            const config = qz.configs.create(printerName);
+        function buildKitchenTicketData(items, orderNumber, deliveryInfo) {
             const data = [
-                '\x1B\x40',        // Init
-                '\x1B\x61\x01',    // Center
-                '\x1B\x21\x30',    // Double height+width
+                '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30',
                 `PEDIDO #${orderNumber}\n`,
-                '\x1B\x21\x00',    // Normal
-                `${deliveryInfo}\n`,
-                '\x1B\x61\x00',    // Left align
-                '--------------------------------\n'
+                '\x1B\x21\x00', `${deliveryInfo}\n`,
+                '\x1B\x61\x00', '--------------------------------\n'
             ];
             for (const item of items) {
-                data.push('\x1B\x21\x10'); // Double height
-                data.push(`${item.quantity}x ${item.name}\n`);
-                data.push('\x1B\x21\x00'); // Normal
+                data.push('\x1B\x21\x10', `${item.quantity}x ${item.name}\n`, '\x1B\x21\x00');
                 if (item.obs) data.push(`   -> ${item.obs}\n`);
                 if (item.cooking_method) {
                     const cm = item.cooking_method === 'frito' ? 'Frita' : item.cooking_method === 'horno' ? 'Al Horno' : item.cooking_method;
                     data.push(`   [${cm}]\n`);
                 }
             }
-            data.push('--------------------------------\n');
-            data.push(`${new Date().toLocaleTimeString('es-AR')}\n`);
-            data.push('\n\n\n');
-            data.push('\x1D\x56\x00'); // Paper cut
-            await qz.print(config, data);
+            data.push('--------------------------------\n', `${new Date().toLocaleTimeString('es-AR')}\n`, '\n\n\n', '\x1D\x56\x00');
+            return data;
         }
 
-        async function printFullTicket(order) {
-            const config = qz.configs.create(PRINTERS.BARRA);
+        function buildFullTicketData(order) {
             const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
             const payLabel = order.payment_method === 'mercadopago' ? 'Mercado Pago' : order.payment_method === 'cash' || order.payment_method === 'efectivo' ? 'Efectivo' : order.payment_method === 'transfer' ? 'Transferencia' : (order.payment_method || '');
-
             const data = [
-                '\x1B\x40',        // Init
-                '\x1B\x61\x01',    // Center
-                '\x1B\x21\x30',    // Double height+width
-                '7TRES7\n',
-                '\x1B\x21\x00',    // Normal
-                'Restaurant & Delivery\n',
-                'Calle 18 N 737 - Gral. Pico\n',
-                'Tel: 2302 51-5656\n',
-                '================================\n',
-                '\x1B\x61\x00',    // Left
-                `Pedido: #${order.order_number}\n`,
-                `${deliveryInfo}\n`,
-                `Fecha: ${new Date(order.created_at).toLocaleString('es-AR')}\n`,
-                '--------------------------------\n'
+                '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30', '7TRES7\n',
+                '\x1B\x21\x00', 'Restaurant & Delivery\n', 'Calle 18 N 737 - Gral. Pico\n', 'Tel: 2302 51-5656\n',
+                '================================\n', '\x1B\x61\x00',
+                `Pedido: #${order.order_number}\n`, `${deliveryInfo}\n`,
+                `Fecha: ${new Date(order.created_at).toLocaleString('es-AR')}\n`, '--------------------------------\n'
             ];
-
             for (const item of (order.items || [])) {
                 const nameStr = (`${item.quantity}x ${item.name}`).substring(0, 24).padEnd(24);
                 const priceStr = ('$' + ((item.subtotal || item.price * item.quantity) || 0).toLocaleString('es-AR')).padStart(8);
                 data.push(`${nameStr}${priceStr}\n`);
             }
-
             data.push('--------------------------------\n');
             const subtotal = parseFloat(order.subtotal || order.total || 0);
             data.push(`${'Subtotal:'.padEnd(24)}$${subtotal.toLocaleString('es-AR').padStart(8)}\n`);
-            if (parseFloat(order.discount || 0) > 0) {
-                data.push(`${'Descuento:'.padEnd(24)}-$${parseFloat(order.discount).toLocaleString('es-AR').padStart(7)}\n`);
-            }
-            if (parseFloat(order.delivery_fee || 0) > 0) {
-                data.push(`${'Envio:'.padEnd(24)}$${parseFloat(order.delivery_fee).toLocaleString('es-AR').padStart(8)}\n`);
-            }
-
-            data.push('================================\n');
-            data.push('\x1B\x21\x10'); // Double height
+            if (parseFloat(order.discount || 0) > 0) data.push(`${'Descuento:'.padEnd(24)}-$${parseFloat(order.discount).toLocaleString('es-AR').padStart(7)}\n`);
+            if (parseFloat(order.delivery_fee || 0) > 0) data.push(`${'Envio:'.padEnd(24)}$${parseFloat(order.delivery_fee).toLocaleString('es-AR').padStart(8)}\n`);
+            data.push('================================\n', '\x1B\x21\x10');
             data.push(`${'TOTAL:'.padEnd(24)}$${parseFloat(order.total).toLocaleString('es-AR').padStart(8)}\n`);
-            data.push('\x1B\x21\x00'); // Normal
-            data.push(`Pago: ${payLabel}\n`);
-            data.push('================================\n');
-            data.push('\x1B\x61\x01'); // Center
-            data.push('Gracias por tu compra!\n');
-            data.push('Instagram: @737resto\n');
-            data.push('\n\n\n');
-            data.push('\x1D\x56\x00'); // Paper cut
-
-            await qz.print(config, data);
+            data.push('\x1B\x21\x00', `Pago: ${payLabel}\n`, '================================\n');
+            data.push('\x1B\x61\x01', 'Gracias por tu compra!\n', 'Instagram: @737resto\n', '\n\n\n', '\x1D\x56\x00');
+            return data;
         }
 
         async function printOrder(orderId) {
             try {
-                // Find order in local state first, fallback to DB
                 let order = allOrders.find(o => o.id === orderId);
                 if (!order) {
                     const { data, error } = await db.from('orders').select('*').eq('id', orderId).single();
                     if (error || !data) { showToast('Error obteniendo pedido', 'error'); return; }
                     order = data;
                 }
-
-                const connected = await connectQZ();
-                if (!connected) {
-                    showToast('QZ Tray no disponible. Verifica que este corriendo.', 'error');
-                    return;
-                }
+                if (typeof qz === 'undefined') { showToast('QZ Tray no cargado', 'error'); return; }
 
                 const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
 
-                // Group items by printer
+                // Agrupar items por impresora
                 const itemsByPrinter = {};
                 for (const item of (order.items || [])) {
                     const cat = item.category || inferCategoryFromName(item.name);
@@ -780,23 +752,43 @@
                     itemsByPrinter[printer].push(item);
                 }
 
-                const promises = [];
-
-                // Kitchen tickets (exclude Barra)
+                // Construir jobs: { host, printer, data }
+                const jobs = [];
                 for (const [printer, items] of Object.entries(itemsByPrinter)) {
                     if (printer !== PRINTERS.BARRA) {
-                        promises.push(printKitchenTicket(printer, items, order.order_number, deliveryInfo));
+                        jobs.push({ host: PRINTER_HOST_MAP[printer], printer, data: buildKitchenTicketData(items, order.order_number, deliveryInfo) });
                     }
                 }
+                jobs.push({ host: PRINTER_HOST_MAP[PRINTERS.BARRA], printer: PRINTERS.BARRA, data: buildFullTicketData(order) });
 
-                // Full ticket on Barra
-                promises.push(printFullTicket(order));
+                // Agrupar por host
+                const jobsByHost = {};
+                for (const job of jobs) {
+                    if (!jobsByHost[job.host]) jobsByHost[job.host] = [];
+                    jobsByHost[job.host].push(job);
+                }
 
-                await Promise.all(promises);
-                showToast(`Pedido #${order.order_number} enviado a imprimir`, 'success');
+                // Conectar a cada host secuencialmente
+                let printed = 0;
+                for (const [host, hostJobs] of Object.entries(jobsByHost)) {
+                    const connected = await connectQZHost(host);
+                    if (!connected) {
+                        showToast(`No se pudo conectar a QZ Tray en ${host}`, 'error');
+                        continue;
+                    }
+                    for (const job of hostJobs) {
+                        const config = qz.configs.create(job.printer);
+                        await qz.print(config, job.data);
+                        printed++;
+                    }
+                    await disconnectQZ();
+                }
+
+                if (printed > 0) showToast(`Pedido #${order.order_number} enviado a imprimir (${printed} tickets)`, 'success');
             } catch (e) {
                 console.error('Error imprimiendo:', e);
                 showToast('Error al imprimir: ' + e.message, 'error');
+                await disconnectQZ();
             }
         }
 
