@@ -166,6 +166,24 @@
         </div>
     </div>
 
+    <!-- Modal Staff Manager -->
+    <div id="modal-staff" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeStaffManager()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden z-10">
+            <div class="bg-gray-900 text-white px-5 py-4 flex items-center justify-between">
+                <h2 class="font-bold text-lg">Administrar cadetes</h2>
+                <button onclick="closeStaffManager()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-5 space-y-3">
+                <div id="staff-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                <div class="flex space-x-2 pt-2 border-t border-gray-200">
+                    <input type="text" id="new-staff-name" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Nombre del cadete" onkeydown="if(event.key==='Enter')addStaffMember()">
+                    <button onclick="addStaffMember()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Agregar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Add Item -->
     <div id="modal-add-item" class="hidden fixed inset-0 z-50">
         <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeAddItemModal()"></div>
@@ -228,6 +246,7 @@
         let productsCache = [];
         let addItemOrderId = null;
         let deletingItemIndex = null; // Track which item is showing delete reason UI
+        let staffCache = []; // cadetes, mozos, etc.
 
         // ==================== SUPABASE INIT ====================
         db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -330,9 +349,19 @@
 
         // ==================== APP INIT ====================
         async function initApp() {
-            await loadOrders();
+            await Promise.all([loadOrders(), loadStaff()]);
             subscribeToOrders();
             connectQZ();
+        }
+
+        async function loadStaff() {
+            try {
+                const { data, error } = await db.from('staff').select('id, name, role, phone, is_active').eq('is_active', true).order('name');
+                if (error) throw error;
+                staffCache = data || [];
+            } catch (e) {
+                console.error('Error loading staff:', e);
+            }
         }
 
         // ==================== LOAD ORDERS ====================
@@ -700,7 +729,7 @@
                  onclick="selectOrder('${order.id}')">
                 <span class="font-bold text-base w-14 text-gray-900">#${order.order_number || '---'}</span>
                 <span class="w-7 text-center text-sm">${isDelivery ? '🚚' : '🏪'}</span>
-                <span class="flex-1 truncate text-sm text-gray-700 px-2">${customerName || '—'}</span>
+                <span class="flex-1 truncate text-sm text-gray-700 px-2">${customerName || '—'}${isDelivery && order.assigned_to ? ` <span class="text-xs text-blue-500">· ${order.assigned_to}</span>` : ''}</span>
                 ${timeHTML}
                 <span class="font-bold text-sm w-20 text-right ${totalClass}">${total}</span>
                 ${quickBtn}
@@ -930,6 +959,20 @@
                         <option value="transfer" ${order.payment_method === 'transfer' ? 'selected' : ''}>🏦 Transferencia</option>
                     </select>
                 </div>
+
+                <!-- Cadete / Mozo assignment -->
+                ${isDelivery ? `
+                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Cadete asignado</h3>
+                    <div class="flex items-center space-x-2">
+                        <select onchange="assignStaff('${order.id}', this.value)" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            <option value="">Sin asignar</option>
+                            ${staffCache.filter(s => s.role === 'cadete').map(s => `<option value="${s.name}" ${order.assigned_to === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
+                        </select>
+                        <button onclick="openStaffManager()" class="px-2 py-2 text-gray-400 hover:text-blue-600 transition" title="Administrar cadetes">⚙️</button>
+                    </div>
+                </div>
+                ` : ''}
 
                 <!-- Timeline -->
                 <div class="px-5 py-3 bg-white border-b border-gray-200">
@@ -1187,6 +1230,87 @@
             } catch (e) {
                 console.error('Error removing discount:', e);
                 showToast('Error al quitar descuento: ' + e.message, 'error');
+            }
+        }
+
+        // ==================== STAFF / CADETES ====================
+        async function assignStaff(orderId, staffName) {
+            try {
+                const { error } = await db.from('orders').update({
+                    assigned_to: staffName || null,
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+                if (error) throw error;
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].assigned_to = staffName || null;
+                    allOrders[idx].updated_at = new Date().toISOString();
+                }
+                renderOrderList();
+                if (staffName) showToast(`Cadete asignado: ${staffName}`, 'success');
+            } catch (e) {
+                console.error('Error assigning staff:', e);
+                showToast('Error al asignar cadete: ' + e.message, 'error');
+            }
+        }
+
+        function openStaffManager() {
+            document.getElementById('modal-staff').classList.remove('hidden');
+            renderStaffList();
+        }
+
+        function closeStaffManager() {
+            document.getElementById('modal-staff').classList.add('hidden');
+        }
+
+        function renderStaffList() {
+            const container = document.getElementById('staff-list');
+            const cadetes = staffCache.filter(s => s.role === 'cadete');
+            container.innerHTML = cadetes.map(s => `
+                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-lg">🏍️</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">${s.name}</p>
+                            ${s.phone ? `<p class="text-xs text-gray-500">${s.phone}</p>` : ''}
+                        </div>
+                    </div>
+                    <button onclick="removeStaffMember('${s.id}')" class="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                </div>
+            `).join('') || '<p class="text-sm text-gray-400 text-center py-4">No hay cadetes</p>';
+        }
+
+        async function addStaffMember() {
+            const nameInput = document.getElementById('new-staff-name');
+            const name = (nameInput.value || '').trim();
+            if (!name) { showToast('Ingresa un nombre', 'error'); return; }
+
+            try {
+                const { data, error } = await db.from('staff').insert({ name, role: 'cadete' }).select().single();
+                if (error) throw error;
+                staffCache.push(data);
+                nameInput.value = '';
+                renderStaffList();
+                renderOrderDetail();
+                showToast(`Cadete "${name}" agregado`, 'success');
+            } catch (e) {
+                console.error('Error adding staff:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function removeStaffMember(staffId) {
+            try {
+                const { error } = await db.from('staff').update({ is_active: false }).eq('id', staffId);
+                if (error) throw error;
+                staffCache = staffCache.filter(s => s.id !== staffId);
+                renderStaffList();
+                renderOrderDetail();
+                showToast('Cadete eliminado', 'info');
+            } catch (e) {
+                console.error('Error removing staff:', e);
+                showToast('Error: ' + e.message, 'error');
             }
         }
 
