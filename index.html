@@ -14,15 +14,28 @@
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .card-enter { animation: fadeInUp 0.3s ease; }
-        .kanban-col { min-height: calc(100vh - 120px); }
-        .order-card { transition: box-shadow 0.2s, transform 0.15s; }
-        .order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-1px); }
-        /* Custom scrollbar */
-        .kanban-col::-webkit-scrollbar { width: 6px; }
-        .kanban-col::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        .kanban-col::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        /* Order list */
+        .order-row { transition: all 0.15s ease; }
+        .order-row:hover { background: #eff6ff; }
+        .order-row.selected { background: #dbeafe; border-left-color: #3b82f6 !important; }
+        .order-row.late { animation: latePulse 2s infinite; }
+        @keyframes latePulse { 0%, 100% { background: white; } 50% { background: #fef2f2; } }
+
+        /* Detail panel animation */
+        .detail-enter { animation: slideInRight 0.2s ease; }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Scrollbar */
+        .order-list-scroll::-webkit-scrollbar, .detail-scroll::-webkit-scrollbar { width: 6px; }
+        .order-list-scroll::-webkit-scrollbar-thumb, .detail-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .order-list-scroll::-webkit-scrollbar-thumb:hover, .detail-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        /* Tab active */
+        .tab-btn.active { background: #111827; color: white; }
+
+        /* Animate pulse for late timers */
+        .timer-pulse { animation: pulse 1.5s infinite; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -49,7 +62,7 @@
 
                 <div id="magic-link-form">
                     <div class="flex space-x-2">
-                        <input type="email" id="magic-email" class="flex-1 border rounded-lg px-4 py-3" placeholder="tu@email.com" placeholder="tu@email.com">
+                        <input type="email" id="magic-email" class="flex-1 border rounded-lg px-4 py-3" placeholder="tu@email.com">
                         <button onclick="loginWithMagicLink()" class="bg-orange-500 text-white px-4 py-3 rounded-lg font-semibold hover:bg-orange-600 whitespace-nowrap">Enviar link</button>
                     </div>
                     <p class="text-xs text-gray-400 mt-2 text-center">Te enviamos un link de acceso a tu email</p>
@@ -64,25 +77,24 @@
 
     <!-- Main App -->
     <div id="main-app" class="hidden h-screen flex flex-col">
-        <!-- Top Bar -->
-        <header class="bg-gray-900 text-white px-4 py-3 flex items-center justify-between flex-shrink-0 z-20 shadow-lg">
+        <!-- Header -->
+        <header class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between flex-shrink-0 z-20 shadow-lg">
             <div class="flex items-center space-x-3">
-                <span class="text-2xl">🥟</span>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight">7TRES7 <span class="text-orange-400">CAJA</span></h1>
-                </div>
+                <span class="text-xl">🔥</span>
+                <h1 class="font-bold text-lg leading-tight">7TRES7 <span class="text-orange-400">CAJA</span></h1>
             </div>
             <div class="flex items-center space-x-4 text-sm">
-                <div id="stats-bar" class="hidden md:flex items-center space-x-4 bg-gray-800 rounded-lg px-4 py-2">
-                    <span>Ventas: <strong id="stat-revenue" class="text-green-400">$0</strong></span>
+                <div id="stats-bar" class="hidden md:flex items-center space-x-3 bg-gray-800 rounded-lg px-4 py-1.5">
+                    <span>Hoy: <strong id="stat-revenue" class="text-green-400">$0</strong></span>
                     <span class="text-gray-600">|</span>
-                    <span>Pedidos: <strong id="stat-count" class="text-orange-400">0</strong></span>
+                    <span><strong id="stat-count" class="text-orange-400">0</strong> pedidos</span>
                     <span class="text-gray-600">|</span>
-                    <span>Promedio: <strong id="stat-avg" class="text-blue-400">$0</strong></span>
+                    <span>Prom: <strong id="stat-avg" class="text-blue-400">$0</strong></span>
+                    <span id="late-badge" class="hidden bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"></span>
                 </div>
             </div>
-            <div class="flex items-center space-x-3">
-                <button onclick="openCierreCaja()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition">CIERRE DE CAJA</button>
+            <div class="flex items-center space-x-2">
+                <button onclick="openCierreCaja()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition" title="F12">CIERRE DE CAJA</button>
                 <button onclick="diagnosticQZ()" class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2 hover:bg-gray-700 transition cursor-pointer" id="qz-status" title="Click para diagnostico QZ Tray">
                     <span id="qz-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
                     <span class="text-xs" id="qz-label">QZ Tray</span>
@@ -91,34 +103,42 @@
             </div>
         </header>
 
-        <!-- Kanban Board -->
-        <div class="flex-1 overflow-hidden">
-            <div class="grid grid-cols-3 gap-0 h-full">
-                <!-- Column 1: PENDIENTES -->
-                <div class="flex flex-col border-r border-gray-200 bg-gray-50">
-                    <div class="bg-yellow-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-                        <h2 class="font-bold text-sm uppercase tracking-wide">Pendientes</h2>
-                        <span id="count-pending" class="bg-yellow-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
-                    </div>
-                    <div id="col-pending" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+        <!-- Filter Bar -->
+        <div class="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between flex-shrink-0" style="min-height:44px;">
+            <div class="flex items-center space-x-1" id="tab-bar">
+                <button class="tab-btn active text-sm font-medium px-3 py-1.5 rounded-lg transition" onclick="switchTab('active')" data-tab="active">Activos (<span id="tab-count-active">0</span>)</button>
+                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('pending')" data-tab="pending">Pendientes (<span id="tab-count-pending">0</span>)</button>
+                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('preparing')" data-tab="preparing">Cocina (<span id="tab-count-preparing">0</span>)</button>
+                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('ready')" data-tab="ready">Listos (<span id="tab-count-ready">0</span>)</button>
+                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('delivered')" data-tab="delivered">Entregados (<span id="tab-count-delivered">0</span>)</button>
+                <button class="tab-btn text-sm font-medium px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition" onclick="switchTab('cancelled')" data-tab="cancelled">Cancelados (<span id="tab-count-cancelled">0</span>)</button>
+            </div>
+            <div class="flex items-center space-x-2">
+                <div class="relative">
+                    <input type="text" id="search-input" class="border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400" placeholder="Buscar # o nombre..." oninput="onSearchInput(this.value)" title="F2">
+                    <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
-
-                <!-- Column 2: EN PREPARACION -->
-                <div class="flex flex-col border-r border-gray-200 bg-gray-50">
-                    <div class="bg-orange-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-                        <h2 class="font-bold text-sm uppercase tracking-wide">En Preparacion</h2>
-                        <span id="count-preparing" class="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
-                    </div>
-                    <div id="col-preparing" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+                <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm bg-gray-900 text-white" onclick="setDeliveryFilter('all')" data-filter="all">All</button>
+                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onclick="setDeliveryFilter('delivery')" data-filter="delivery">🚚</button>
+                    <button class="delivery-filter-btn px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-100" onclick="setDeliveryFilter('pickup')" data-filter="pickup">🏪</button>
                 </div>
+            </div>
+        </div>
 
-                <!-- Column 3: LISTOS -->
-                <div class="flex flex-col bg-gray-50">
-                    <div class="bg-green-500 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-                        <h2 class="font-bold text-sm uppercase tracking-wide">Listos</h2>
-                        <span id="count-ready" class="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">0</span>
-                    </div>
-                    <div id="col-ready" class="kanban-col flex-1 overflow-y-auto p-3 space-y-3"></div>
+        <!-- Master-Detail Layout -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Order List (left panel ~58%) -->
+            <div class="w-[58%] flex flex-col border-r border-gray-200 bg-white">
+                <div id="order-list" class="flex-1 overflow-y-auto order-list-scroll">
+                    <!-- Order rows rendered here -->
+                </div>
+            </div>
+
+            <!-- Order Detail (right panel ~42%) -->
+            <div class="w-[42%] flex flex-col bg-gray-50">
+                <div id="order-detail" class="flex-1 overflow-y-auto detail-scroll">
+                    <!-- Detail rendered here -->
                 </div>
             </div>
         </div>
@@ -144,6 +164,23 @@
         </div>
     </div>
 
+    <!-- Modal Add Item -->
+    <div id="modal-add-item" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeAddItemModal()"></div>
+        <div class="absolute inset-y-8 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col">
+            <div class="bg-gray-900 text-white px-5 py-4 flex items-center justify-between flex-shrink-0">
+                <h2 class="font-bold text-lg">Agregar producto al pedido</h2>
+                <button onclick="closeAddItemModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div class="px-5 py-3 border-b flex-shrink-0">
+                <input type="text" id="product-search-input" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Buscar producto..." oninput="filterProducts(this.value)">
+            </div>
+            <div id="product-grid" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <!-- Products rendered here -->
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==================== CONFIGURACION ====================
         const SUPABASE_URL = 'https://yfdustfjfmifvgybwinr.supabase.co';
@@ -164,6 +201,15 @@
             'bebidas': PRINTERS.BARRA, 'gaseosas': PRINTERS.BARRA, 'cervezas': PRINTERS.BARRA, 'vinos': PRINTERS.BARRA
         };
 
+        const PAY_LABELS = {
+            'cash': 'Efectivo', 'debit_card': 'Tarj. Debito', 'credit_card': 'Tarj. Credito',
+            'mercadopago': 'Mercado Pago', 'qr': 'QR', 'prepaid_card': 'Prepaga', 'transfer': 'Transferencia'
+        };
+        const PAY_ICONS = {
+            'cash': '💵', 'debit_card': '💳', 'credit_card': '💳',
+            'mercadopago': '📲', 'qr': '📱', 'prepaid_card': '💳', 'transfer': '🏦'
+        };
+
         let db = null;
         let currentUser = null;
         let appInitialized = false;
@@ -171,6 +217,15 @@
         let qzConnected = false;
         let realtimeChannel = null;
         let knownOrderIds = new Set();
+
+        // New state
+        let selectedOrderId = null;
+        let activeTab = 'active';
+        let searchQuery = '';
+        let deliveryFilter = 'all';
+        let productsCache = [];
+        let addItemOrderId = null;
+        let deletingItemIndex = null; // Track which item is showing delete reason UI
 
         // ==================== SUPABASE INIT ====================
         db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -297,9 +352,9 @@
                 if (error) throw error;
 
                 allOrders = data || [];
-                // Track known order IDs
                 allOrders.forEach(o => knownOrderIds.add(o.id));
-                renderBoard();
+                renderOrderList();
+                renderOrderDetail();
                 updateStats();
             } catch (e) {
                 console.error('Error loading orders:', e);
@@ -330,16 +385,13 @@
 
         function handleRealtimeEvent(payload) {
             const { eventType, new: newRecord, old: oldRecord } = payload;
-
             const todayStart = getTodayStart();
 
             if (eventType === 'INSERT') {
-                // Only add if it's from today
                 if (newRecord.created_at >= todayStart) {
                     const isNew = !knownOrderIds.has(newRecord.id);
                     knownOrderIds.add(newRecord.id);
 
-                    // Check if already in the array
                     const existingIdx = allOrders.findIndex(o => o.id === newRecord.id);
                     if (existingIdx >= 0) {
                         allOrders[existingIdx] = newRecord;
@@ -360,9 +412,11 @@
                 }
             } else if (eventType === 'DELETE') {
                 allOrders = allOrders.filter(o => o.id !== (oldRecord?.id || ''));
+                if (selectedOrderId === oldRecord?.id) selectedOrderId = null;
             }
 
-            renderBoard();
+            renderOrderList();
+            renderOrderDetail();
             updateStats();
         }
 
@@ -370,7 +424,6 @@
         function playNotificationSound() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                // First beep
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
                 osc1.connect(gain1);
@@ -382,7 +435,6 @@
                 osc1.start(ctx.currentTime);
                 osc1.stop(ctx.currentTime + 0.2);
 
-                // Second beep (higher)
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
                 osc2.connect(gain2);
@@ -394,161 +446,662 @@
                 osc2.start(ctx.currentTime + 0.25);
                 osc2.stop(ctx.currentTime + 0.5);
 
-                // Clean up
                 setTimeout(() => ctx.close(), 1000);
             } catch (e) {
                 console.warn('Could not play notification sound:', e);
             }
         }
 
-        // ==================== RENDER BOARD ====================
-        function renderBoard() {
-            const pending = allOrders.filter(o => o.status === 'pending');
-            const preparing = allOrders.filter(o => o.status === 'confirmed' || o.status === 'preparing');
-            const ready = allOrders.filter(o => o.status === 'ready');
-
-            // Sort: newest first for pending, oldest first for preparing/ready
-            pending.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            preparing.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-            ready.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-            document.getElementById('count-pending').textContent = pending.length;
-            document.getElementById('count-preparing').textContent = preparing.length;
-            document.getElementById('count-ready').textContent = ready.length;
-
-            renderColumn('col-pending', pending, 'pending');
-            renderColumn('col-preparing', preparing, 'preparing');
-            renderColumn('col-ready', ready, 'ready');
+        // ==================== TIME HELPERS ====================
+        function getTimeInfo(createdAt) {
+            const minutes = Math.floor((Date.now() - new Date(createdAt)) / 60000);
+            if (minutes < 10) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', border: 'border-l-green-400', pulse: false };
+            if (minutes < 20) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-l-yellow-400', pulse: false };
+            if (minutes < 30) return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-l-orange-400', pulse: false };
+            return { label: minutes + 'm', color: 'text-red-600 font-bold', bg: 'bg-red-50', border: 'border-l-red-500', pulse: true };
         }
 
-        function renderColumn(containerId, orders, column) {
-            const container = document.getElementById(containerId);
+        function getElapsedLabel(fromDate) {
+            if (!fromDate) return '';
+            const minutes = Math.floor((Date.now() - new Date(fromDate)) / 60000);
+            if (minutes < 1) return 'hace un momento';
+            if (minutes < 60) return 'hace ' + minutes + 'm';
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return 'hace ' + hours + 'h ' + mins + 'm';
+        }
+
+        function formatTime(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function fmt(n) {
+            return '$' + parseFloat(n || 0).toLocaleString('es-AR');
+        }
+
+        // ==================== FILTER & TAB LOGIC ====================
+        function switchTab(tab) {
+            activeTab = tab;
+            // Reset selection when changing tabs
+            // selectedOrderId = null; // Keep selection if order is in new tab too
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+            });
+            const activeBtn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+            }
+            renderOrderList();
+            renderOrderDetail();
+        }
+
+        function onSearchInput(val) {
+            searchQuery = val.trim().toLowerCase();
+            renderOrderList();
+        }
+
+        function setDeliveryFilter(filter) {
+            deliveryFilter = filter;
+            document.querySelectorAll('.delivery-filter-btn').forEach(btn => {
+                if (btn.dataset.filter === filter) {
+                    btn.classList.add('bg-gray-900', 'text-white');
+                    btn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                } else {
+                    btn.classList.remove('bg-gray-900', 'text-white');
+                    btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+                }
+            });
+            renderOrderList();
+        }
+
+        function getFilteredOrders() {
+            let orders = [...allOrders];
+
+            // Tab filter
+            if (activeTab === 'active') {
+                orders = orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status));
+            } else if (activeTab === 'pending') {
+                orders = orders.filter(o => o.status === 'pending');
+            } else if (activeTab === 'preparing') {
+                orders = orders.filter(o => o.status === 'confirmed' || o.status === 'preparing');
+            } else if (activeTab === 'ready') {
+                orders = orders.filter(o => o.status === 'ready');
+            } else if (activeTab === 'delivered') {
+                orders = orders.filter(o => o.status === 'delivered');
+            } else if (activeTab === 'cancelled') {
+                orders = orders.filter(o => o.status === 'cancelled');
+            }
+
+            // Delivery filter
+            if (deliveryFilter === 'delivery') {
+                orders = orders.filter(o => o.delivery_type === 'delivery');
+            } else if (deliveryFilter === 'pickup') {
+                orders = orders.filter(o => o.delivery_type === 'pickup');
+            }
+
+            // Search filter
+            if (searchQuery) {
+                orders = orders.filter(o => {
+                    const num = String(o.order_number || '').toLowerCase();
+                    const name = (o.customer_name || extractFromNotes(o.customer_notes, 'Nombre') || '').toLowerCase();
+                    const phone = (o.customer_phone || extractFromNotes(o.customer_notes, 'Tel') || '').toLowerCase();
+                    return num.includes(searchQuery) || name.includes(searchQuery) || phone.includes(searchQuery);
+                });
+            }
+
+            // Sorting
+            if (activeTab === 'delivered') {
+                orders.sort((a, b) => new Date(b.delivered_at || b.created_at) - new Date(a.delivered_at || a.created_at));
+            } else if (activeTab === 'cancelled') {
+                orders.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+            } else {
+                // Active/pending/preparing/ready: oldest first (most urgent on top)
+                orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            }
+
+            return orders;
+        }
+
+        // ==================== TAB COUNTS ====================
+        function updateTabCounts() {
+            const active = allOrders.filter(o => ['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)).length;
+            const pending = allOrders.filter(o => o.status === 'pending').length;
+            const preparing = allOrders.filter(o => o.status === 'confirmed' || o.status === 'preparing').length;
+            const ready = allOrders.filter(o => o.status === 'ready').length;
+            const delivered = allOrders.filter(o => o.status === 'delivered').length;
+            const cancelled = allOrders.filter(o => o.status === 'cancelled').length;
+
+            document.getElementById('tab-count-active').textContent = active;
+            document.getElementById('tab-count-pending').textContent = pending;
+            document.getElementById('tab-count-preparing').textContent = preparing;
+            document.getElementById('tab-count-ready').textContent = ready;
+            document.getElementById('tab-count-delivered').textContent = delivered;
+            document.getElementById('tab-count-cancelled').textContent = cancelled;
+        }
+
+        // ==================== RENDER ORDER LIST ====================
+        function renderOrderList() {
+            updateTabCounts();
+            const orders = getFilteredOrders();
+            const container = document.getElementById('order-list');
 
             if (orders.length === 0) {
+                const emojis = { active: '📋', pending: '⏳', preparing: '🍳', ready: '✅', delivered: '📦', cancelled: '❌' };
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-32 text-gray-400">
-                        <span class="text-3xl mb-2">${column === 'pending' ? '⏳' : column === 'preparing' ? '🍳' : '✅'}</span>
-                        <span class="text-sm">Sin pedidos</span>
+                    <div class="flex flex-col items-center justify-center h-64 text-gray-400">
+                        <span class="text-4xl mb-3">${emojis[activeTab] || '📋'}</span>
+                        <span class="text-sm">Sin pedidos${searchQuery ? ' para "' + searchQuery + '"' : ''}</span>
                     </div>`;
                 return;
             }
 
-            container.innerHTML = orders.map(o => renderOrderCard(o, column)).join('');
+            container.innerHTML = orders.map(o => renderOrderRow(o)).join('');
         }
 
-        function renderOrderCard(order, column) {
-            const time = new Date(order.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        function renderOrderRow(order) {
+            const isSelected = order.id === selectedOrderId;
             const isDelivery = order.delivery_type === 'delivery';
-            const deliveryIcon = isDelivery ? '🚚' : '🏪';
-            const deliveryLabel = isDelivery ? 'DELIVERY' : 'RETIRA';
-            const address = isDelivery && order.delivery_address ? order.delivery_address : '';
-
-            // Customer info from customers join or from customer_notes
             const customerName = order.customer_name || extractFromNotes(order.customer_notes, 'Nombre') || '';
-            const customerPhone = order.customer_phone || extractFromNotes(order.customer_notes, 'Tel') || '';
+            const total = fmt(order.total);
 
-            // Items list
-            const items = order.items || [];
-            const itemsHTML = items.map(i => {
-                let line = `<span class="font-semibold">${i.quantity}x</span> ${i.name}`;
-                if (i.obs) line += ` <span class="text-gray-400 text-xs italic">(${i.obs})</span>`;
-                if (i.cooking_method) {
-                    const cm = i.cooking_method === 'frito' ? 'Frita' : i.cooking_method === 'horno' ? 'Al Horno' : i.cooking_method;
-                    line += ` <span class="text-orange-500 text-xs">[${cm}]</span>`;
-                }
-                return `<div class="text-sm text-gray-700 leading-relaxed">${line}</div>`;
-            }).join('');
+            // Status border color
+            let borderColor = 'border-l-gray-300';
+            if (order.status === 'pending') borderColor = 'border-l-yellow-400';
+            else if (order.status === 'confirmed' || order.status === 'preparing') borderColor = 'border-l-orange-400';
+            else if (order.status === 'ready') borderColor = 'border-l-green-400';
+            else if (order.status === 'delivered') borderColor = 'border-l-gray-300';
+            else if (order.status === 'cancelled') borderColor = 'border-l-red-400';
 
-            // Payment method
-            const payLabels = {
-                'cash': '💵 Efectivo', 'mercadopago': '💳 MP', 'transfer': '🏦 Transfer',
-                'debit_card': '💳 Debito', 'credit_card': '💳 Credito', 'qr': '📱 QR', 'prepaid_card': '💳 Prepaga'
-            };
-            const payLabel = payLabels[order.payment_method] || order.payment_method || '';
-
-            // Total formatted
-            const total = '$' + parseFloat(order.total || 0).toLocaleString('es-AR');
-
-            // Delivery fee
-            const deliveryFee = parseFloat(order.delivery_fee || 0);
-            const deliveryFeeHTML = deliveryFee > 0 ? `<span class="text-xs text-blue-500 ml-2">(+envio $${deliveryFee.toLocaleString('es-AR')})</span>` : '';
-
-            // Action button
-            let actionBtn = '';
-            if (column === 'pending') {
-                actionBtn = `<button onclick="confirmOrder('${order.id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">CONFIRMAR</button>`;
-            } else if (column === 'preparing') {
-                actionBtn = `<button onclick="markReady('${order.id}')" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">LISTO</button>`;
-            } else if (column === 'ready') {
-                actionBtn = `<button onclick="markDelivered('${order.id}')" class="flex-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition">ENTREGADO</button>`;
+            // Time info
+            const isActive = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
+            let timeHTML = '';
+            let isLate = false;
+            if (isActive) {
+                const ti = getTimeInfo(order.created_at);
+                isLate = ti.pulse;
+                timeHTML = `<span class="text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}" data-created-at="${order.created_at}">${ti.label}</span>`;
+            } else if (order.status === 'delivered') {
+                const deliveredTime = formatTime(order.delivered_at);
+                timeHTML = `<span class="text-xs text-gray-400 w-14 text-center">${deliveredTime || '✅'}</span>`;
+            } else if (order.status === 'cancelled') {
+                timeHTML = `<span class="text-xs text-red-400 w-14 text-center">✕</span>`;
             }
 
-            // Status sub-badge for confirmed vs preparing
-            let statusBadge = '';
-            if (column === 'preparing') {
-                if (order.status === 'confirmed') {
-                    statusBadge = '<span class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">Confirmado</span>';
-                } else {
-                    statusBadge = '<span class="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-medium">Preparando</span>';
-                }
+            // Quick action button
+            let quickBtn = '';
+            if (order.status === 'pending') {
+                quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">CONFIRMAR</button>`;
+            } else if (order.status === 'confirmed' || order.status === 'preparing') {
+                quickBtn = `<button onclick="event.stopPropagation(); markReady('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-purple-500 text-white hover:bg-purple-600 w-24 transition">LISTO</button>`;
+            } else if (order.status === 'ready') {
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">ENTREGADO</button>`;
             }
 
-            // Card border color by column
-            const borderColor = column === 'pending' ? 'border-l-yellow-400' : column === 'preparing' ? 'border-l-orange-400' : 'border-l-green-400';
+            const deliveredClass = order.status === 'delivered' ? 'opacity-60' : '';
+            const cancelledClass = order.status === 'cancelled' ? 'opacity-60' : '';
+            const totalClass = order.status === 'cancelled' ? 'line-through text-red-500' : 'text-gray-900';
 
             return `
-            <div class="order-card card-enter bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 ${borderColor} overflow-hidden">
-                <!-- Header -->
-                <div class="flex items-center justify-between px-3 pt-3 pb-1">
-                    <div class="flex items-center space-x-2">
-                        <span class="font-bold text-lg text-gray-900">#${order.order_number || '---'}</span>
-                        ${statusBadge}
-                    </div>
-                    <span class="text-xs text-gray-400 font-medium">${time}</span>
-                </div>
+            <div class="order-row flex items-center px-3 py-2.5 border-b border-gray-100 cursor-pointer border-l-4 ${borderColor} ${isSelected ? 'selected' : ''} ${isLate && !isSelected ? 'late' : ''} ${deliveredClass} ${cancelledClass}"
+                 onclick="selectOrder('${order.id}')">
+                <span class="font-bold text-base w-14 text-gray-900">#${order.order_number || '---'}</span>
+                <span class="w-7 text-center text-sm">${isDelivery ? '🚚' : '🏪'}</span>
+                <span class="flex-1 truncate text-sm text-gray-700 px-2">${customerName || '—'}</span>
+                ${timeHTML}
+                <span class="font-bold text-sm w-20 text-right ${totalClass}">${total}</span>
+                ${quickBtn}
+            </div>`;
+        }
 
-                <!-- Delivery type -->
-                <div class="px-3 pb-1">
-                    <span class="text-xs font-bold ${isDelivery ? 'text-blue-600' : 'text-green-600'}">${deliveryIcon} ${deliveryLabel}</span>
-                    ${address ? `<div class="text-xs text-gray-500 truncate" title="${address}">${address}</div>` : ''}
-                    ${customerName ? `<div class="text-xs text-gray-500">${customerName}</div>` : ''}
+        // ==================== RENDER ORDER DETAIL ====================
+        function renderOrderDetail() {
+            const container = document.getElementById('order-detail');
+
+            if (!selectedOrderId) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <svg class="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        <p class="text-base font-medium">Selecciona un pedido de la lista</p>
+                        <p class="text-sm mt-1">Usa las flechas o haz click en un pedido</p>
+                    </div>`;
+                return;
+            }
+
+            const order = allOrders.find(o => o.id === selectedOrderId);
+            if (!order) {
+                selectedOrderId = null;
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <p class="text-sm">Pedido no encontrado</p>
+                    </div>`;
+                return;
+            }
+
+            const isDelivery = order.delivery_type === 'delivery';
+            const customerName = order.customer_name || order.customers?.name || extractFromNotes(order.customer_notes, 'Nombre') || '';
+            const customerPhone = order.customer_phone || order.customers?.phone || extractFromNotes(order.customer_notes, 'Tel') || '';
+            const address = isDelivery ? (order.delivery_address || '') : '';
+            const items = order.items || [];
+
+            // Status badge
+            const statusMap = {
+                'pending': { label: 'PENDIENTE', bg: 'bg-yellow-100', text: 'text-yellow-800' },
+                'confirmed': { label: 'CONFIRMADO', bg: 'bg-blue-100', text: 'text-blue-800' },
+                'preparing': { label: 'PREPARANDO', bg: 'bg-orange-100', text: 'text-orange-800' },
+                'ready': { label: 'LISTO', bg: 'bg-green-100', text: 'text-green-800' },
+                'delivered': { label: 'ENTREGADO', bg: 'bg-gray-100', text: 'text-gray-600' },
+                'cancelled': { label: 'CANCELADO', bg: 'bg-red-100', text: 'text-red-800' }
+            };
+            const st = statusMap[order.status] || statusMap['pending'];
+
+            // Time info
+            const isActive = ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status);
+            let timeSection = '';
+            if (isActive) {
+                const ti = getTimeInfo(order.created_at);
+                timeSection = `<span class="text-lg font-bold ${ti.color} ${ti.pulse ? 'timer-pulse' : ''}">${ti.label}</span>`;
+            }
+
+            // Items HTML
+            const itemsHTML = items.map((item, idx) => {
+                const itemSubtotal = fmt(item.subtotal || (item.price * item.quantity) || 0);
+                let obsLine = '';
+                if (item.obs) obsLine += `<p class="text-xs text-gray-400 italic ml-7">obs: ${item.obs}</p>`;
+                if (item.cooking_method) {
+                    const cm = item.cooking_method === 'frito' ? 'Frita' : item.cooking_method === 'horno' ? 'Al Horno' : item.cooking_method;
+                    obsLine += `<p class="text-xs text-orange-500 ml-7">[${cm}]</p>`;
+                }
+
+                // Delete reason UI (inline)
+                let deleteReasonHTML = '';
+                if (deletingItemIndex === idx && selectedOrderId === order.id) {
+                    deleteReasonHTML = `
+                        <div class="ml-7 mt-1 flex items-center space-x-2 bg-red-50 rounded px-2 py-1.5">
+                            <span class="text-xs text-red-600 font-medium whitespace-nowrap">Motivo?</span>
+                            <select id="delete-reason-${idx}" class="text-xs border border-red-200 rounded px-2 py-1 bg-white flex-1">
+                                <option value="Cliente cancelo">Cliente cancelo</option>
+                                <option value="Sin stock">Sin stock</option>
+                                <option value="Error de carga">Error de carga</option>
+                                <option value="Cambio de pedido">Cambio de pedido</option>
+                            </select>
+                            <button onclick="confirmRemoveItem('${order.id}', ${idx})" class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 font-bold">Eliminar</button>
+                            <button onclick="cancelDeleteItem()" class="text-xs text-gray-500 hover:text-gray-700">&times;</button>
+                        </div>`;
+                }
+
+                const isEditable = order.status !== 'delivered' && order.status !== 'cancelled';
+
+                return `
+                <div class="py-2 ${idx > 0 ? 'border-t border-gray-100' : ''}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center flex-1 min-w-0">
+                            <span class="font-semibold text-sm w-7 text-gray-900">${item.quantity}x</span>
+                            <span class="text-sm text-gray-800 truncate">${item.name}</span>
+                        </div>
+                        <span class="text-sm font-medium text-gray-700 ml-2 whitespace-nowrap">${itemSubtotal}</span>
+                    </div>
+                    ${obsLine}
+                    ${isEditable ? `
+                    <div class="ml-7 mt-1 flex items-center space-x-1">
+                        <button onclick="editItemQuantity('${order.id}', ${idx}, 1)" class="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold transition" title="Agregar 1">+</button>
+                        <button onclick="editItemQuantity('${order.id}', ${idx}, -1)" class="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold transition" title="Quitar 1">&minus;</button>
+                        <button onclick="startDeleteItem(${idx})" class="w-6 h-6 flex items-center justify-center rounded bg-red-50 hover:bg-red-100 text-red-500 text-xs transition" title="Eliminar item">🗑️</button>
+                    </div>
+                    ` : ''}
+                    ${deleteReasonHTML}
+                </div>`;
+            }).join('');
+
+            // Totals
+            const subtotal = items.reduce((s, i) => s + ((i.subtotal || (i.price * i.quantity)) || 0), 0);
+            const deliveryFee = parseFloat(order.delivery_fee || 0);
+            const discount = parseFloat(order.discount || 0);
+            const total = parseFloat(order.total || 0);
+
+            // Main action button
+            let mainActionHTML = '';
+            if (order.status === 'pending') {
+                mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ CONFIRMAR PEDIDO</button>`;
+            } else if (order.status === 'confirmed' || order.status === 'preparing') {
+                mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-purple-500 hover:bg-purple-600 transition">✓ MARCAR LISTO</button>`;
+            } else if (order.status === 'ready') {
+                mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ MARCAR ENTREGADO</button>`;
+            }
+
+            // Timeline
+            let timelineHTML = '';
+            const timelineSteps = [];
+            if (order.created_at) timelineSteps.push({ label: 'Creado', time: order.created_at });
+            if (order.confirmed_at) timelineSteps.push({ label: 'Confirmado', time: order.confirmed_at });
+            if (order.ready_at) timelineSteps.push({ label: 'Listo', time: order.ready_at });
+            if (order.delivered_at) timelineSteps.push({ label: 'Entregado', time: order.delivered_at });
+
+            timelineHTML = timelineSteps.map(s => {
+                return `<div class="flex items-center justify-between text-xs text-gray-500">
+                    <span>${s.label}</span>
+                    <span>${formatTime(s.time)} (${getElapsedLabel(s.time)})</span>
+                </div>`;
+            }).join('');
+
+            const canEdit = order.status !== 'delivered' && order.status !== 'cancelled';
+
+            container.innerHTML = `
+            <div class="detail-enter">
+                <!-- Header -->
+                <div class="px-5 pt-5 pb-3 bg-white border-b border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl font-bold text-gray-900">#${order.order_number || '---'}</span>
+                            <span class="text-xs font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}">${st.label}</span>
+                        </div>
+                        ${timeSection}
+                    </div>
+                    <div class="flex items-center space-x-2 mb-1">
+                        <span class="text-sm font-bold ${isDelivery ? 'text-blue-600' : 'text-green-600'}">${isDelivery ? '🚚 DELIVERY' : '🏪 RETIRA EN LOCAL'}</span>
+                    </div>
+                    ${address ? `<p class="text-sm text-gray-600 mb-0.5">${address}</p>` : ''}
+                    ${customerName ? `<p class="text-sm text-gray-700 font-medium">${customerName}</p>` : ''}
+                    ${customerPhone ? `<p class="text-sm text-gray-500"><a href="tel:${customerPhone}" class="hover:text-blue-600 underline decoration-dotted">${customerPhone}</a></p>` : ''}
                 </div>
 
                 <!-- Items -->
-                <div class="border-t border-gray-100 px-3 py-2">
-                    ${itemsHTML || '<span class="text-xs text-gray-400">Sin items</span>'}
+                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Items</h3>
+                    ${itemsHTML || '<p class="text-sm text-gray-400">Sin items</p>'}
+                    ${canEdit ? `
+                    <button onclick="openAddItemModal('${order.id}')" class="mt-3 w-full py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition">+ Agregar item</button>
+                    ` : ''}
                 </div>
 
-                <!-- Footer -->
-                <div class="border-t border-gray-100 px-3 py-2 bg-gray-50">
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center space-x-1">
-                            <span class="font-bold text-orange-600">${total}</span>
-                            ${deliveryFeeHTML}
+                <!-- Totals -->
+                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>Subtotal</span>
+                            <span>${fmt(subtotal)}</span>
                         </div>
-                        <select onchange="updatePaymentMethod('${order.id}', this.value)" class="text-xs border border-gray-300 rounded px-1.5 py-0.5 bg-white">
-                            <option value="cash" ${order.payment_method === 'cash' ? 'selected' : ''}>Efectivo</option>
-                            <option value="debit_card" ${order.payment_method === 'debit_card' ? 'selected' : ''}>Tarj. Debito</option>
-                            <option value="credit_card" ${order.payment_method === 'credit_card' ? 'selected' : ''}>Tarj. Credito</option>
-                            <option value="mercadopago" ${order.payment_method === 'mercadopago' ? 'selected' : ''}>Mercado Pago</option>
-                            <option value="qr" ${order.payment_method === 'qr' ? 'selected' : ''}>QR</option>
-                            <option value="prepaid_card" ${order.payment_method === 'prepaid_card' ? 'selected' : ''}>Prepaga</option>
-                            <option value="transfer" ${order.payment_method === 'transfer' ? 'selected' : ''}>Transferencia</option>
-                        </select>
+                        ${deliveryFee > 0 ? `
+                        <div class="flex justify-between text-sm text-blue-600">
+                            <span>Envio</span>
+                            <span>${fmt(deliveryFee)}</span>
+                        </div>` : ''}
+                        ${discount > 0 ? `
+                        <div class="flex justify-between text-sm text-red-500">
+                            <span>Descuento</span>
+                            <span>-${fmt(discount)}</span>
+                        </div>` : ''}
+                        <div class="flex justify-between text-lg font-bold text-gray-900 pt-1 border-t border-gray-200">
+                            <span>TOTAL</span>
+                            <span>${fmt(total)}</span>
+                        </div>
                     </div>
-                    ${customerPhone ? `<div class="text-xs text-gray-400 mb-1">Tel: ${customerPhone}</div>` : ''}
-                    <div class="flex items-center space-x-2">
-                        ${actionBtn}
-                        <button onclick="printOrder('${order.id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg transition" title="Imprimir">🖨️</button>
+                </div>
+
+                <!-- Payment -->
+                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Medio de pago</h3>
+                    <select onchange="updatePaymentMethod('${order.id}', this.value)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <option value="cash" ${order.payment_method === 'cash' ? 'selected' : ''}>💵 Efectivo</option>
+                        <option value="debit_card" ${order.payment_method === 'debit_card' ? 'selected' : ''}>💳 Tarj. Debito</option>
+                        <option value="credit_card" ${order.payment_method === 'credit_card' ? 'selected' : ''}>💳 Tarj. Credito</option>
+                        <option value="mercadopago" ${order.payment_method === 'mercadopago' ? 'selected' : ''}>📲 Mercado Pago</option>
+                        <option value="qr" ${order.payment_method === 'qr' ? 'selected' : ''}>📱 QR</option>
+                        <option value="prepaid_card" ${order.payment_method === 'prepaid_card' ? 'selected' : ''}>💳 Prepaga</option>
+                        <option value="transfer" ${order.payment_method === 'transfer' ? 'selected' : ''}>🏦 Transferencia</option>
+                    </select>
+                </div>
+
+                <!-- Timeline -->
+                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Historial</h3>
+                    <div class="space-y-1">
+                        ${timelineHTML}
                     </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="px-5 py-4 bg-white">
+                    ${mainActionHTML ? `<div class="mb-3">${mainActionHTML}</div>` : ''}
+                    <div class="flex items-center space-x-2 mb-3">
+                        <button onclick="printOrder('${order.id}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">🖨️ Imprimir</button>
+                        <button onclick="notifyCustomerWhatsApp('${order.id}', '${order_whatsapp_event(order.status)}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">💬 WhatsApp</button>
+                    </div>
+                    ${order.status !== 'cancelled' && order.status !== 'delivered' ? `
+                    <button onclick="cancelOrder('${order.id}')" class="w-full py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition">❌ Cancelar pedido</button>
+                    ` : ''}
                 </div>
             </div>`;
         }
 
-        function extractFromNotes(notes, field) {
-            if (!notes) return '';
-            const match = notes.match(new RegExp(field + ':\\s*([^|]+)'));
-            return match ? match[1].trim() : '';
+        function order_whatsapp_event(status) {
+            if (status === 'pending') return 'confirmed';
+            if (status === 'confirmed' || status === 'preparing') return 'ready';
+            return 'ready';
+        }
+
+        // ==================== SELECT ORDER ====================
+        function selectOrder(orderId) {
+            selectedOrderId = orderId;
+            deletingItemIndex = null;
+            renderOrderList();
+            renderOrderDetail();
+        }
+
+        function selectNextOrder() {
+            const orders = getFilteredOrders();
+            if (orders.length === 0) return;
+            if (!selectedOrderId) {
+                selectOrder(orders[0].id);
+                return;
+            }
+            const idx = orders.findIndex(o => o.id === selectedOrderId);
+            if (idx < orders.length - 1) {
+                selectOrder(orders[idx + 1].id);
+            }
+        }
+
+        function selectPrevOrder() {
+            const orders = getFilteredOrders();
+            if (orders.length === 0) return;
+            if (!selectedOrderId) {
+                selectOrder(orders[0].id);
+                return;
+            }
+            const idx = orders.findIndex(o => o.id === selectedOrderId);
+            if (idx > 0) {
+                selectOrder(orders[idx - 1].id);
+            }
+        }
+
+        // ==================== ITEM EDITING ====================
+        async function editItemQuantity(orderId, itemIndex, delta) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order || !order.items || !order.items[itemIndex]) return;
+
+            const items = [...order.items];
+            items[itemIndex] = { ...items[itemIndex] };
+            items[itemIndex].quantity = Math.max(1, (items[itemIndex].quantity || 1) + delta);
+            items[itemIndex].subtotal = items[itemIndex].quantity * (items[itemIndex].price || 0);
+
+            await updateOrderInDB(orderId, items);
+        }
+
+        function startDeleteItem(itemIndex) {
+            deletingItemIndex = itemIndex;
+            renderOrderDetail();
+        }
+
+        function cancelDeleteItem() {
+            deletingItemIndex = null;
+            renderOrderDetail();
+        }
+
+        async function confirmRemoveItem(orderId, itemIndex) {
+            const reasonEl = document.getElementById('delete-reason-' + itemIndex);
+            const reason = reasonEl ? reasonEl.value : 'Sin motivo';
+
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order || !order.items || !order.items[itemIndex]) return;
+
+            const removedItem = order.items[itemIndex];
+            console.log('Item eliminado:', removedItem.name, '| Motivo:', reason, '| Pedido #' + order.order_number);
+
+            const items = order.items.filter((_, i) => i !== itemIndex);
+            deletingItemIndex = null;
+
+            await updateOrderInDB(orderId, items);
+            showToast('Item eliminado: ' + removedItem.name, 'info');
+        }
+
+        async function updateOrderInDB(orderId, newItems) {
+            try {
+                // Recalculate total
+                const order = allOrders.find(o => o.id === orderId);
+                if (!order) return;
+
+                const subtotal = newItems.reduce((s, i) => s + ((i.subtotal || (i.price * i.quantity)) || 0), 0);
+                const deliveryFee = parseFloat(order.delivery_fee || 0);
+                const discount = parseFloat(order.discount || 0);
+                const newTotal = subtotal + deliveryFee - discount;
+
+                const { error } = await db.from('orders').update({
+                    items: newItems,
+                    subtotal: subtotal,
+                    total: newTotal,
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                // Update local state
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].items = newItems;
+                    allOrders[idx].subtotal = subtotal;
+                    allOrders[idx].total = newTotal;
+                    allOrders[idx].updated_at = new Date().toISOString();
+                }
+
+                renderOrderList();
+                renderOrderDetail();
+                updateStats();
+            } catch (e) {
+                console.error('Error updating order:', e);
+                showToast('Error al actualizar: ' + e.message, 'error');
+            }
+        }
+
+        // ==================== ADD ITEM MODAL ====================
+        async function loadProducts() {
+            if (productsCache.length > 0) return;
+            try {
+                const { data, error } = await db.from('products').select('id, name, price, category_id, slug').order('name');
+                if (error) throw error;
+                productsCache = data || [];
+            } catch (e) {
+                console.error('Error loading products:', e);
+                showToast('Error cargando productos: ' + e.message, 'error');
+            }
+        }
+
+        async function openAddItemModal(orderId) {
+            addItemOrderId = orderId;
+            document.getElementById('modal-add-item').classList.remove('hidden');
+            document.getElementById('product-search-input').value = '';
+            document.getElementById('product-search-input').focus();
+            await loadProducts();
+            renderProductGrid(productsCache);
+        }
+
+        function closeAddItemModal() {
+            document.getElementById('modal-add-item').classList.add('hidden');
+            addItemOrderId = null;
+        }
+
+        function filterProducts(query) {
+            const q = query.toLowerCase().trim();
+            if (!q) {
+                renderProductGrid(productsCache);
+                return;
+            }
+            const filtered = productsCache.filter(p => (p.name || '').toLowerCase().includes(q));
+            renderProductGrid(filtered);
+        }
+
+        let filteredProductsCache = [];
+        function renderProductGrid(products) {
+            filteredProductsCache = products;
+            const container = document.getElementById('product-grid');
+            if (products.length === 0) {
+                container.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12">No se encontraron productos</div>';
+                return;
+            }
+            container.innerHTML = products.map((p, idx) => `
+                <button onclick="addProductByIndex(${idx})"
+                        class="bg-white border border-gray-200 rounded-lg p-3 hover:border-blue-400 hover:shadow-sm transition text-left">
+                    <p class="text-sm font-medium text-gray-800 truncate">${p.name}</p>
+                    <p class="text-sm font-bold text-orange-600 mt-1">${fmt(p.price)}</p>
+                </button>
+            `).join('');
+        }
+
+        function addProductByIndex(idx) {
+            const product = filteredProductsCache[idx];
+            if (product && addItemOrderId) addItemToOrder(addItemOrderId, product);
+        }
+
+        async function addItemToOrder(orderId, product) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const newItem = {
+                name: product.name,
+                price: product.price || 0,
+                quantity: 1,
+                subtotal: product.price || 0,
+                slug: product.slug || '',
+                product_id: product.id || null
+            };
+
+            const items = [...(order.items || []), newItem];
+            closeAddItemModal();
+            await updateOrderInDB(orderId, items);
+            showToast('Agregado: ' + product.name, 'success');
+        }
+
+        // ==================== CANCEL ORDER ====================
+        async function cancelOrder(orderId) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order) return;
+            if (!confirm('Cancelar pedido #' + (order.order_number || '') + '?\n\nEsta accion no se puede deshacer.')) return;
+
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'cancelled',
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'cancelled';
+                    allOrders[idx].updated_at = new Date().toISOString();
+                }
+
+                showToast('Pedido #' + order.order_number + ' cancelado', 'error');
+                renderOrderList();
+                renderOrderDetail();
+                updateStats();
+            } catch (e) {
+                console.error('Error cancelling order:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
         }
 
         // ==================== STATS ====================
@@ -558,9 +1111,24 @@
             const count = todayOrders.length;
             const avg = count > 0 ? Math.round(revenue / count) : 0;
 
-            document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString('es-AR');
+            document.getElementById('stat-revenue').textContent = fmt(revenue);
             document.getElementById('stat-count').textContent = count;
-            document.getElementById('stat-avg').textContent = '$' + avg.toLocaleString('es-AR');
+            document.getElementById('stat-avg').textContent = fmt(avg);
+
+            // Late orders badge
+            const lateOrders = allOrders.filter(o => {
+                if (!['pending', 'confirmed', 'preparing', 'ready'].includes(o.status)) return false;
+                const minutes = Math.floor((Date.now() - new Date(o.created_at)) / 60000);
+                return minutes >= 30;
+            });
+
+            const badge = document.getElementById('late-badge');
+            if (lateOrders.length > 0) {
+                badge.textContent = '🔴 ' + lateOrders.length + ' demorado' + (lateOrders.length > 1 ? 's' : '');
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
         }
 
         // ==================== ORDER STATUS UPDATES ====================
@@ -588,7 +1156,8 @@
                     allOrders[idx].status = 'confirmed';
                     allOrders[idx].confirmed_at = new Date().toISOString();
                     allOrders[idx].updated_at = new Date().toISOString();
-                    renderBoard();
+                    renderOrderList();
+                    renderOrderDetail();
                 }
             } catch (e) {
                 console.error('Error confirming order:', e);
@@ -616,7 +1185,8 @@
                     allOrders[idx].status = 'ready';
                     allOrders[idx].ready_at = new Date().toISOString();
                     allOrders[idx].updated_at = new Date().toISOString();
-                    renderBoard();
+                    renderOrderList();
+                    renderOrderDetail();
                 }
             } catch (e) {
                 console.error('Error updating order:', e);
@@ -641,7 +1211,8 @@
                     allOrders[idx].status = 'delivered';
                     allOrders[idx].delivered_at = new Date().toISOString();
                     allOrders[idx].updated_at = new Date().toISOString();
-                    renderBoard();
+                    renderOrderList();
+                    renderOrderDetail();
                 }
             } catch (e) {
                 console.error('Error updating order:', e);
@@ -649,8 +1220,17 @@
             }
         }
 
+        // ==================== EXECUTE MAIN ACTION (for Enter key) ====================
+        function executeMainAction() {
+            if (!selectedOrderId) return;
+            const order = allOrders.find(o => o.id === selectedOrderId);
+            if (!order) return;
+            if (order.status === 'pending') confirmOrder(order.id);
+            else if (order.status === 'confirmed' || order.status === 'preparing') markReady(order.id);
+            else if (order.status === 'ready') markDelivered(order.id);
+        }
+
         // ==================== QZ TRAY ====================
-        // Intenta conectar a un host. Si falla con IP, intenta localhost como fallback.
         async function connectQZHost(host) {
             try {
                 if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return false; }
@@ -658,14 +1238,12 @@
                 qz.security.setCertificatePromise(function(resolve) { resolve(); });
                 qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
 
-                // Intentar conectar a la IP especifica
                 try {
                     await qz.websocket.connect({ host: host });
                     console.log('QZ Tray conectado a', host);
                     return true;
                 } catch (e1) {
                     console.warn('QZ Tray: fallo IP ' + host + ', intentando localhost...');
-                    // Fallback: si estamos en la misma PC, localhost funciona
                     try {
                         if (qz.websocket.isActive()) await qz.websocket.disconnect();
                         await qz.websocket.connect();
@@ -686,11 +1264,9 @@
             try { if (typeof qz !== 'undefined' && qz.websocket.isActive()) await qz.websocket.disconnect(); } catch (e) {}
         }
 
-        // Verificar conectividad
         async function checkQZStatus() {
             if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return; }
 
-            // Intentar localhost primero (caso mas comun: caja corre en una de las PCs)
             let localOk = false;
             try {
                 if (qz.websocket.isActive()) await qz.websocket.disconnect();
@@ -698,7 +1274,6 @@
                 qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
                 await qz.websocket.connect();
                 localOk = true;
-                // Detectar impresoras locales para saber en que PC estamos
                 const localPrinters = await qz.printers.find();
                 await qz.websocket.disconnect();
                 const hasBarra = localPrinters.includes(PRINTERS.BARRA);
@@ -716,6 +1291,11 @@
                 updateQZStatus(false, 'Desconectado');
                 qzConnected = false;
             }
+        }
+
+        // connectQZ in initApp just calls checkQZStatus
+        async function connectQZ() {
+            await checkQZStatus();
         }
 
         function updateQZStatus(connected, label) {
@@ -823,9 +1403,6 @@
                 }
                 allJobs.push({ printer: PRINTERS.BARRA, data: buildFullTicketData(order) });
 
-                // Conectar a localhost (la PC donde estamos) e imprimir todo
-                // QZ Tray solo ve las impresoras instaladas en esa PC
-                // Si una impresora no existe en esta PC, QZ Tray dara error (se catchea)
                 if (qz.websocket.isActive()) await qz.websocket.disconnect();
                 qz.security.setCertificatePromise(function(resolve) { resolve(); });
                 qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
@@ -839,7 +1416,6 @@
                         printed++;
                     } catch (printErr) {
                         console.warn('No se pudo imprimir en ' + job.printer + ':', printErr.message);
-                        // Impresora no disponible en esta PC - normal si Minuta/Parrilla estan en otra PC
                     }
                 }
 
@@ -847,9 +1423,6 @@
 
                 if (printed > 0) showToast(`Pedido #${order.order_number}: ${printed} ticket(s) impresos`, 'success');
                 else showToast('No se pudo imprimir en ninguna impresora', 'error');
-
-                // TODO: Para imprimir en la otra PC, se necesita QZ Tray configurado para aceptar conexiones remotas
-                // o instalar caja en ambas PCs
 
             } catch (e) {
                 console.error('Error imprimiendo:', e);
@@ -869,15 +1442,6 @@
         }
 
         // ==================== CIERRE DE CAJA ====================
-        const PAY_LABELS = {
-            'cash': 'Efectivo', 'debit_card': 'Tarj. Debito', 'credit_card': 'Tarj. Credito',
-            'mercadopago': 'Mercado Pago', 'qr': 'QR', 'prepaid_card': 'Prepaga', 'transfer': 'Transferencia'
-        };
-        const PAY_ICONS = {
-            'cash': '💵', 'debit_card': '💳', 'credit_card': '💳',
-            'mercadopago': '📲', 'qr': '📱', 'prepaid_card': '💳', 'transfer': '🏦'
-        };
-
         async function openCierreCaja() {
             document.getElementById('modal-cierre').classList.remove('hidden');
             renderCierre();
@@ -889,7 +1453,6 @@
 
         function getCierreOrders() {
             const turno = document.getElementById('cierre-turno').value;
-            // Filter only completed orders (not cancelled or pending)
             let orders = allOrders.filter(o => o.status !== 'cancelled');
 
             if (turno === 'noon') {
@@ -910,6 +1473,16 @@
             const orders = getCierreOrders();
             const delivered = orders.filter(o => o.status === 'delivered');
             const active = orders.filter(o => o.status !== 'delivered');
+
+            // Cancelled orders (separate from getCierreOrders which excludes them)
+            const turno = document.getElementById('cierre-turno').value;
+            let cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
+            if (turno === 'noon') {
+                cancelledOrders = cancelledOrders.filter(o => { const h = new Date(o.created_at).getHours(); return h >= 11 && h < 16; });
+            } else if (turno === 'night') {
+                cancelledOrders = cancelledOrders.filter(o => { const h = new Date(o.created_at).getHours(); return h >= 18 || h < 2; });
+            }
+            const cancelledTotal = cancelledOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
 
             const totalVentas = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
             const totalDeliveryFees = orders.reduce((s, o) => s + parseFloat(o.delivery_fee || 0), 0);
@@ -946,15 +1519,13 @@
             const turnoLabel = document.getElementById('cierre-turno').selectedOptions[0].text;
             const fecha = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-            const fmt = (n) => '$' + n.toLocaleString('es-AR');
-
             document.getElementById('cierre-content').innerHTML = `
                 <div class="text-center mb-6">
                     <p class="text-gray-500 text-sm">${fecha} - ${turnoLabel}</p>
                 </div>
 
                 <!-- Summary Cards -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                     <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
                         <p class="text-green-600 text-sm font-medium">Total Ventas</p>
                         <p class="text-2xl font-bold text-green-700">${fmt(totalVentas)}</p>
@@ -972,6 +1543,11 @@
                         <p class="text-purple-600 text-sm font-medium">Envios cobrados</p>
                         <p class="text-2xl font-bold text-purple-700">${fmt(totalDeliveryFees)}</p>
                         ${totalDiscounts > 0 ? `<p class="text-xs text-red-500">Desc: -${fmt(totalDiscounts)}</p>` : ''}
+                    </div>
+                    <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+                        <p class="text-red-600 text-sm font-medium">Cancelados</p>
+                        <p class="text-2xl font-bold text-red-700">${cancelledOrders.length}</p>
+                        <p class="text-xs text-gray-400">${fmt(cancelledTotal)} perdido</p>
                     </div>
                 </div>
 
@@ -1058,6 +1634,10 @@
                 const deliveryTotal = deliveryOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
                 const pickupTotal = pickupOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
 
+                // Cancelled
+                const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
+                const cancelledTotal = cancelledOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+
                 const byPayment = {};
                 for (const o of orders) {
                     const m = o.payment_method || 'cash';
@@ -1069,7 +1649,6 @@
                 const turnoLabel = document.getElementById('cierre-turno').selectedOptions[0].text;
                 const fecha = new Date().toLocaleDateString('es-AR');
                 const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-                const fmt = (n) => '$' + n.toLocaleString('es-AR');
 
                 const data = [
                     '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30',
@@ -1104,6 +1683,10 @@
                 data.push('--------------------------------\n');
                 if (totalDeliveryFees > 0) data.push(`${'Envios cobrados:'.padEnd(20)}${fmt(totalDeliveryFees).padStart(12)}\n`);
                 if (totalDiscounts > 0) data.push(`${'Descuentos:'.padEnd(20)}${('-' + fmt(totalDiscounts)).padStart(12)}\n`);
+                if (cancelledOrders.length > 0) {
+                    data.push(`${'Cancelados:'.padEnd(20)}${String(cancelledOrders.length).padStart(12)}\n`);
+                    data.push(`${'  Total cancelado:'.padEnd(20)}${fmt(cancelledTotal).padStart(12)}\n`);
+                }
                 data.push('================================\n');
                 data.push('\x1B\x61\x01', 'Cierre generado por 7Tres7 Caja\n');
                 data.push('\n\n\n', '\x1D\x56\x00');
@@ -1141,7 +1724,6 @@
                     await qz.websocket.connect({ host: host.ip });
                     report += `  Conexion: OK\n`;
 
-                    // Listar impresoras encontradas
                     const found = await qz.printers.find();
                     report += `  Impresoras encontradas: ${found.length}\n`;
                     for (const p of found) {
@@ -1149,7 +1731,6 @@
                         report += `    - ${p}${expected}\n`;
                     }
 
-                    // Verificar que las esperadas existan
                     for (const expected of host.printers) {
                         if (!found.includes(expected)) {
                             report += `  !! FALTA: "${expected}" no encontrada en esta PC\n`;
@@ -1197,11 +1778,18 @@
                         ? `Hola ${name}! Tu pedido #${order.order_number} esta *listo para retirar*. Te esperamos en Calle 18 N 737. Gracias!`
                         : `Hola ${name}! Tu pedido #${order.order_number} esta *listo* y sale en camino. Gracias por elegir 7Tres7!`;
                 }
+
                 if (msg) window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
             } catch (e) { console.warn('Error notificando:', e); }
         }
 
         // ==================== HELPERS ====================
+        function extractFromNotes(notes, field) {
+            if (!notes) return '';
+            const match = notes.match(new RegExp(field + ':\\s*([^|]+)'));
+            return match ? match[1].trim() : '';
+        }
+
         function showToast(msg, type = 'info') {
             const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
             const toast = document.createElement('div');
@@ -1215,10 +1803,64 @@
             }, 3000);
         }
 
-        // ESC to close modals (none in this app, but just in case)
-        document.addEventListener('keydown', e => {
+        // ==================== TIMER UPDATE ====================
+        setInterval(() => {
+            if (!appInitialized) return;
+            // Update all visible timers in order list
+            document.querySelectorAll('[data-created-at]').forEach(el => {
+                const ti = getTimeInfo(el.dataset.createdAt);
+                el.textContent = ti.label;
+                el.className = `text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}`;
+            });
+            // Update late badge
+            updateStats();
+            // Update detail panel time if showing an active order
+            if (selectedOrderId) {
+                const order = allOrders.find(o => o.id === selectedOrderId);
+                if (order && ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status)) {
+                    // Re-render detail to update elapsed time
+                    renderOrderDetail();
+                }
+            }
+        }, 30000);
+
+        // ==================== KEYBOARD SHORTCUTS ====================
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if (e.key === 'F2') {
+                e.preventDefault();
+                document.getElementById('search-input')?.focus();
+            }
+            if (e.key === 'F12') {
+                e.preventDefault();
+                openCierreCaja();
+            }
             if (e.key === 'Escape') {
-                // Nothing to close in this simple UI
+                e.preventDefault();
+                selectedOrderId = null;
+                deletingItemIndex = null;
+                renderOrderDetail();
+                renderOrderList();
+                closeCierreCaja();
+                closeAddItemModal();
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectNextOrder();
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectPrevOrder();
+            }
+            if (e.key === 'Enter' && selectedOrderId) {
+                e.preventDefault();
+                executeMainAction();
+            }
+            if (e.key >= '1' && e.key <= '6' && e.altKey) {
+                e.preventDefault();
+                const tabs = ['active', 'pending', 'preparing', 'ready', 'delivered', 'cancelled'];
+                const idx = parseInt(e.key) - 1;
+                if (idx < tabs.length) switchTab(tabs[idx]);
             }
         });
     </script>
