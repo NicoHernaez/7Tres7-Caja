@@ -6,7 +6,7 @@
     <title>7Tres7 - Panel de Caja</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2/qz-tray.min.js"></script>
+    <!-- Impresion manejada por Supabase Trigger + Electron App -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥟</text></svg>">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -97,10 +97,6 @@
             </div>
             <div class="flex items-center space-x-2">
                 <button onclick="openCierreCaja()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition" title="F12">CIERRE DE CAJA</button>
-                <button onclick="diagnosticQZ()" class="flex items-center space-x-2 bg-gray-800 rounded-lg px-3 py-2 hover:bg-gray-700 transition cursor-pointer" id="qz-status" title="Click para diagnostico QZ Tray">
-                    <span id="qz-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                    <span class="text-xs" id="qz-label">QZ Tray</span>
-                </button>
                 <button onclick="logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-lg hover:bg-gray-800 transition text-sm" title="Cerrar sesion">Salir</button>
             </div>
         </header>
@@ -207,19 +203,7 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZHVzdGZqZm1pZnZneWJ3aW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMzU3ODQsImV4cCI6MjA4NTgxMTc4NH0.YcLo7YXePi0_okJxtPuYLaMQI2-P4C8UxNzXnLfQoBY';
         const AUTHORIZED_EMAILS = ['nicohernaez22@gmail.com', 'lumimartin24@gmail.com', 'martinludmila300@gmail.com'];
 
-        // Printer config
-        const PRINTERS = { BARRA: 'Barra', MINUTA: 'Minuta', PARRILLA: 'Parrilla Delivery' };
-        const QZ_HOSTS = { BARRA: '192.168.1.6', COCINA: '192.168.1.9' };
-        const PRINTER_HOST_MAP = {
-            [PRINTERS.BARRA]: QZ_HOSTS.BARRA,
-            [PRINTERS.MINUTA]: QZ_HOSTS.COCINA,
-            [PRINTERS.PARRILLA]: QZ_HOSTS.COCINA
-        };
-        const CATEGORY_PRINTER_MAP = {
-            'empanadas': PRINTERS.MINUTA, 'minutas': PRINTERS.MINUTA, 'pizzas': PRINTERS.MINUTA, 'postres': PRINTERS.MINUTA,
-            'restaurant': PRINTERS.PARRILLA, 'pastas': PRINTERS.PARRILLA, 'carnes': PRINTERS.PARRILLA, 'parrilla': PRINTERS.PARRILLA,
-            'bebidas': PRINTERS.BARRA, 'gaseosas': PRINTERS.BARRA, 'cervezas': PRINTERS.BARRA, 'vinos': PRINTERS.BARRA
-        };
+        // Impresion manejada por Supabase trigger + Electron App (ver 7tres7-print-app)
 
         const PAY_LABELS = {
             'cash': 'Efectivo', 'debit_card': 'Tarj. Debito', 'credit_card': 'Tarj. Credito',
@@ -234,7 +218,6 @@
         let currentUser = null;
         let appInitialized = false;
         let allOrders = [];
-        let qzConnected = false;
         let realtimeChannel = null;
         let knownOrderIds = new Set();
 
@@ -351,7 +334,6 @@
         async function initApp() {
             await Promise.all([loadOrders(), loadStaff()]);
             subscribeToOrders();
-            connectQZ();
         }
 
         async function loadStaff() {
@@ -986,7 +968,7 @@
                 <div class="px-5 py-4 bg-white">
                     ${mainActionHTML ? `<div class="mb-3">${mainActionHTML}</div>` : ''}
                     <div class="flex items-center space-x-2 mb-3">
-                        <button onclick="printOrder('${order.id}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">🖨️ Imprimir</button>
+                        <button onclick="reprintOrder('${order.id}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">🖨️ Reimprimir</button>
                         <button onclick="notifyCustomerWhatsApp('${order.id}', '${order_whatsapp_event(order.status)}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">💬 WhatsApp</button>
                     </div>
                     ${order.status !== 'cancelled' && order.status !== 'delivered' ? `
@@ -1464,8 +1446,9 @@
 
                 showToast('Pedido confirmado', 'success');
 
-                // Auto-print on confirm
-                printOrder(orderId);
+                // Impresion automatica via Supabase trigger (create_print_jobs_for_order)
+                // No se necesita llamar a printOrder(), el trigger crea los print_jobs
+                // y la app Electron los recibe via Realtime
 
                 // Notificar cliente por WhatsApp
                 notifyCustomerWhatsApp(orderId, 'confirmed');
@@ -1582,150 +1565,9 @@
             else if (order.status === 'delivering') markDelivered(order.id);
         }
 
-        // ==================== QZ TRAY ====================
-        async function connectQZHost(host) {
-            try {
-                if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return false; }
-                if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                qz.security.setCertificatePromise(function(resolve) { resolve(); });
-                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-
-                try {
-                    await qz.websocket.connect({ host: host });
-                    console.log('QZ Tray conectado a', host);
-                    return true;
-                } catch (e1) {
-                    console.warn('QZ Tray: fallo IP ' + host + ', intentando localhost...');
-                    try {
-                        if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                        await qz.websocket.connect();
-                        console.log('QZ Tray conectado via localhost (fallback para ' + host + ')');
-                        return true;
-                    } catch (e2) {
-                        console.warn('QZ Tray no disponible en ' + host + ' ni localhost:', e2.message);
-                        return false;
-                    }
-                }
-            } catch (e) {
-                console.warn('QZ Tray error general:', e.message);
-                return false;
-            }
-        }
-
-        async function disconnectQZ() {
-            try { if (typeof qz !== 'undefined' && qz.websocket.isActive()) await qz.websocket.disconnect(); } catch (e) {}
-        }
-
-        async function checkQZStatus() {
-            if (typeof qz === 'undefined') { updateQZStatus(false, 'No cargado'); return; }
-
-            let localOk = false;
-            try {
-                if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                qz.security.setCertificatePromise(function(resolve) { resolve(); });
-                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-                await qz.websocket.connect();
-                localOk = true;
-                const localPrinters = await qz.printers.find();
-                await qz.websocket.disconnect();
-                const hasBarra = localPrinters.includes(PRINTERS.BARRA);
-                const hasMinuta = localPrinters.includes(PRINTERS.MINUTA);
-                const hasParrilla = localPrinters.includes(PRINTERS.PARRILLA);
-
-                let label = 'Conectado';
-                if (hasBarra && (hasMinuta || hasParrilla)) label = 'Barra + Cocina';
-                else if (hasBarra) label = 'Barra (local)';
-                else if (hasMinuta || hasParrilla) label = 'Cocina (local)';
-
-                updateQZStatus(true, label);
-                qzConnected = true;
-            } catch (e) {
-                updateQZStatus(false, 'Desconectado');
-                qzConnected = false;
-            }
-        }
-
-        // connectQZ in initApp just calls checkQZStatus
-        async function connectQZ() {
-            await checkQZStatus();
-        }
-
-        function updateQZStatus(connected, label) {
-            const dot = document.getElementById('qz-dot');
-            const lbl = document.getElementById('qz-label');
-            dot.className = 'w-2.5 h-2.5 rounded-full ' + (connected ? 'bg-green-500' : 'bg-red-500');
-            lbl.textContent = label || 'QZ Tray';
-        }
-
-        // Check QZ status every 30s
-        setInterval(async () => {
-            if (appInitialized) await checkQZStatus();
-        }, 30000);
-
-        function getPrinterForCategory(cat) {
-            return CATEGORY_PRINTER_MAP[(cat || '').toLowerCase().trim()] || PRINTERS.BARRA;
-        }
-
-        function inferCategoryFromName(name) {
-            if (!name) return 'minutas';
-            const n = name.toLowerCase();
-            if (n.includes('empanada') || n.includes('emp ') || n.includes('emp.')) return 'empanadas';
-            if (n.includes('pizza')) return 'pizzas';
-            if (n.includes('lomito') || n.includes('milanesa') || n.includes('hamburguesa') || n.includes('suprema')) return 'minutas';
-            if (n.includes('flan') || n.includes('helado') || n.includes('cheese')) return 'postres';
-            if (n.includes('sorrentino') || n.includes('tagliatelle') || n.includes('lasagna') || n.includes('noqui') || n.includes('raviole')) return 'pastas';
-            if (n.includes('bife') || n.includes('asado') || n.includes('bondiola') || n.includes('matambre') || n.includes('pollo')) return 'parrilla';
-            if (n.includes('coca') || n.includes('fanta') || n.includes('sprite') || n.includes('agua') || n.includes('cerveza') || n.includes('vino')) return 'bebidas';
-            return 'minutas';
-        }
-
-        function buildKitchenTicketData(items, orderNumber, deliveryInfo) {
-            const data = [
-                '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30',
-                `PEDIDO #${orderNumber}\n`,
-                '\x1B\x21\x00', `${deliveryInfo}\n`,
-                '\x1B\x61\x00', '--------------------------------\n'
-            ];
-            for (const item of items) {
-                data.push('\x1B\x21\x10', `${item.quantity}x ${item.name}\n`, '\x1B\x21\x00');
-                if (item.obs) data.push(`   -> ${item.obs}\n`);
-                if (item.cooking_method) {
-                    const cm = item.cooking_method === 'frito' ? 'Frita' : item.cooking_method === 'horno' ? 'Al Horno' : item.cooking_method;
-                    data.push(`   [${cm}]\n`);
-                }
-            }
-            data.push('--------------------------------\n', `${new Date().toLocaleTimeString('es-AR')}\n`, '\n\n\n', '\x1D\x56\x00');
-            return data;
-        }
-
-        function buildFullTicketData(order) {
-            const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
-            const payLabel = order.payment_method === 'mercadopago' ? 'Mercado Pago' : order.payment_method === 'cash' || order.payment_method === 'efectivo' ? 'Efectivo' : order.payment_method === 'transfer' ? 'Transferencia' : (order.payment_method || '');
-            const data = [
-                '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30', '7TRES7\n',
-                '\x1B\x21\x00', 'Restaurant & Delivery\n', 'Calle 18 N 737 - Gral. Pico\n', 'Tel: 2302 51-5656\n',
-                '================================\n', '\x1B\x61\x00',
-                `Pedido: #${order.order_number}\n`, `${deliveryInfo}\n`,
-                `Fecha: ${new Date(order.created_at).toLocaleString('es-AR')}\n`, '--------------------------------\n'
-            ];
-            for (const item of (order.items || [])) {
-                const nameStr = (`${item.quantity}x ${item.name}`).substring(0, 24).padEnd(24);
-                const priceStr = ('$' + ((item.subtotal || item.price * item.quantity) || 0).toLocaleString('es-AR')).padStart(8);
-                data.push(`${nameStr}${priceStr}\n`);
-            }
-            data.push('--------------------------------\n');
-            const subtotal = parseFloat(order.subtotal || order.total || 0);
-            data.push(`${'Subtotal:'.padEnd(24)}$${subtotal.toLocaleString('es-AR').padStart(8)}\n`);
-            if (parseFloat(order.discount || 0) > 0) data.push(`${'Descuento:'.padEnd(24)}-$${parseFloat(order.discount).toLocaleString('es-AR').padStart(7)}\n`);
-            if (parseFloat(order.delivery_fee || 0) > 0) data.push(`${'Envio:'.padEnd(24)}$${parseFloat(order.delivery_fee).toLocaleString('es-AR').padStart(8)}\n`);
-            data.push('================================\n', '\x1B\x21\x10');
-            data.push(`${'TOTAL:'.padEnd(24)}$${parseFloat(order.total).toLocaleString('es-AR').padStart(8)}\n`);
-            data.push('\x1B\x21\x00', `Pago: ${payLabel}\n`, '================================\n');
-            data.push('\x1B\x61\x01', 'Gracias por tu compra!\n', 'Instagram: @737resto\n', '\n\n\n', '\x1D\x56\x00');
-            return data;
-        }
-
-        async function printOrder(orderId) {
+        // ==================== REIMPRIMIR PEDIDO ====================
+        // Crea print_jobs en Supabase para que la app Electron los recoja
+        async function reprintOrder(orderId) {
             try {
                 let order = allOrders.find(o => o.id === orderId);
                 if (!order) {
@@ -1733,53 +1575,18 @@
                     if (error || !data) { showToast('Error obteniendo pedido', 'error'); return; }
                     order = data;
                 }
-                if (typeof qz === 'undefined') { showToast('QZ Tray no cargado', 'error'); return; }
 
-                const deliveryInfo = order.delivery_type === 'pickup' ? 'RETIRA EN LOCAL' : `DELIVERY - ${order.delivery_address || ''}`;
+                // Forzar re-ejecucion del trigger: marcar y volver a confirmed
+                const { error } = await db.from('orders').update({
+                    status: 'confirmed',
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
 
-                // Agrupar items por impresora
-                const itemsByPrinter = {};
-                for (const item of (order.items || [])) {
-                    const cat = item.category || inferCategoryFromName(item.name);
-                    const printer = getPrinterForCategory(cat);
-                    if (!itemsByPrinter[printer]) itemsByPrinter[printer] = [];
-                    itemsByPrinter[printer].push(item);
-                }
-
-                // Construir todos los print jobs
-                const allJobs = [];
-                for (const [printer, items] of Object.entries(itemsByPrinter)) {
-                    if (printer !== PRINTERS.BARRA) {
-                        allJobs.push({ printer, data: buildKitchenTicketData(items, order.order_number, deliveryInfo) });
-                    }
-                }
-                allJobs.push({ printer: PRINTERS.BARRA, data: buildFullTicketData(order) });
-
-                if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                qz.security.setCertificatePromise(function(resolve) { resolve(); });
-                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-                await qz.websocket.connect();
-
-                let printed = 0;
-                for (const job of allJobs) {
-                    try {
-                        const config = qz.configs.create(job.printer);
-                        await qz.print(config, job.data);
-                        printed++;
-                    } catch (printErr) {
-                        console.warn('No se pudo imprimir en ' + job.printer + ':', printErr.message);
-                    }
-                }
-
-                await disconnectQZ();
-
-                if (printed > 0) showToast(`Pedido #${order.order_number}: ${printed} ticket(s) impresos`, 'success');
-                else showToast('No se pudo imprimir en ninguna impresora', 'error');
-
+                if (error) throw error;
+                showToast(`Reimpresion solicitada para #${order.order_number}`, 'success');
             } catch (e) {
-                console.error('Error imprimiendo:', e);
-                showToast('Error al imprimir: ' + e.message, 'error');
-                await disconnectQZ();
+                console.error('Error reimprimiendo:', e);
+                showToast('Error al reimprimir: ' + e.message, 'error');
             }
         }
 
@@ -1970,141 +1777,8 @@
         }
 
         async function printCierreCaja() {
-            try {
-                if (typeof qz === 'undefined') { showToast('QZ Tray no disponible', 'error'); return; }
-                if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                qz.security.setCertificatePromise(function(resolve) { resolve(); });
-                qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-                await qz.websocket.connect();
-
-                const orders = getCierreOrders();
-                const totalVentas = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-                const totalDeliveryFees = orders.reduce((s, o) => s + parseFloat(o.delivery_fee || 0), 0);
-                const totalDiscounts = orders.reduce((s, o) => s + parseFloat(o.discount || 0), 0);
-                const deliveryOrders = orders.filter(o => o.delivery_type === 'delivery');
-                const pickupOrders = orders.filter(o => o.delivery_type === 'pickup');
-                const deliveryTotal = deliveryOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-                const pickupTotal = pickupOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-
-                // Cancelled
-                const cancelledOrders = allOrders.filter(o => o.status === 'cancelled');
-                const cancelledTotal = cancelledOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-
-                const byPayment = {};
-                for (const o of orders) {
-                    const m = o.payment_method || 'cash';
-                    if (!byPayment[m]) byPayment[m] = { count: 0, total: 0 };
-                    byPayment[m].count++;
-                    byPayment[m].total += parseFloat(o.total || 0);
-                }
-
-                const turnoLabel = document.getElementById('cierre-turno').selectedOptions[0].text;
-                const fecha = new Date().toLocaleDateString('es-AR');
-                const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-
-                const data = [
-                    '\x1B\x40', '\x1B\x61\x01', '\x1B\x21\x30',
-                    'CIERRE DE CAJA\n',
-                    '\x1B\x21\x00',
-                    '7TRES7 Restaurant\n',
-                    `${fecha} - ${turnoLabel}\n`,
-                    `Impreso: ${hora}\n`,
-                    '================================\n',
-                    '\x1B\x61\x00',
-                    '\x1B\x21\x10',
-                    `${'TOTAL VENTAS:'.padEnd(20)}${fmt(totalVentas).padStart(12)}\n`,
-                    '\x1B\x21\x00',
-                    `${'Pedidos:'.padEnd(20)}${String(orders.length).padStart(12)}\n`,
-                    `${'Ticket promedio:'.padEnd(20)}${fmt(orders.length > 0 ? Math.round(totalVentas / orders.length) : 0).padStart(12)}\n`,
-                    '--------------------------------\n',
-                    'POR TIPO DE PEDIDO:\n',
-                    `${'  Delivery:'.padEnd(20)}${fmt(deliveryTotal).padStart(12)}\n`,
-                    `${'    (pedidos)'.padEnd(20)}${String(deliveryOrders.length).padStart(12)}\n`,
-                    `${'  Mostrador:'.padEnd(20)}${fmt(pickupTotal).padStart(12)}\n`,
-                    `${'    (pedidos)'.padEnd(20)}${String(pickupOrders.length).padStart(12)}\n`,
-                    '--------------------------------\n',
-                    'POR MEDIO DE PAGO:\n'
-                ];
-
-                for (const [method, d] of Object.entries(byPayment).sort((a, b) => b[1].total - a[1].total)) {
-                    const label = '  ' + (PAY_LABELS[method] || method) + ':';
-                    data.push(`${label.padEnd(20)}${fmt(d.total).padStart(12)}\n`);
-                    data.push(`${'    (pedidos)'.padEnd(20)}${String(d.count).padStart(12)}\n`);
-                }
-
-                data.push('--------------------------------\n');
-                if (totalDeliveryFees > 0) data.push(`${'Envios cobrados:'.padEnd(20)}${fmt(totalDeliveryFees).padStart(12)}\n`);
-                if (totalDiscounts > 0) data.push(`${'Descuentos:'.padEnd(20)}${('-' + fmt(totalDiscounts)).padStart(12)}\n`);
-                if (cancelledOrders.length > 0) {
-                    data.push(`${'Cancelados:'.padEnd(20)}${String(cancelledOrders.length).padStart(12)}\n`);
-                    data.push(`${'  Total cancelado:'.padEnd(20)}${fmt(cancelledTotal).padStart(12)}\n`);
-                }
-                data.push('================================\n');
-                data.push('\x1B\x61\x01', 'Cierre generado por 7Tres7 Caja\n');
-                data.push('\n\n\n', '\x1D\x56\x00');
-
-                const config = qz.configs.create(PRINTERS.BARRA);
-                await qz.print(config, data);
-                await disconnectQZ();
-                showToast('Cierre impreso', 'success');
-            } catch (e) {
-                console.error('Error imprimiendo cierre:', e);
-                showToast('Error: ' + e.message, 'error');
-                await disconnectQZ();
-            }
-        }
-
-        // ==================== QZ TRAY DIAGNOSTICO ====================
-        async function diagnosticQZ() {
-            if (typeof qz === 'undefined') {
-                alert('QZ Tray: libreria no cargada.\n\nVerifica que la PC tenga internet para cargar qz-tray.min.js');
-                return;
-            }
-
-            let report = '=== DIAGNOSTICO QZ TRAY ===\n\n';
-            const hosts = [
-                { name: 'PC BARRA', ip: QZ_HOSTS.BARRA, printers: ['Barra'] },
-                { name: 'PC COCINA', ip: QZ_HOSTS.COCINA, printers: ['Minuta', 'Parrilla Delivery'] }
-            ];
-
-            for (const host of hosts) {
-                report += `${host.name} (${host.ip}):\n`;
-                try {
-                    if (qz.websocket.isActive()) await qz.websocket.disconnect();
-                    qz.security.setCertificatePromise(function(resolve) { resolve(); });
-                    qz.security.setSignaturePromise(function() { return function(resolve) { resolve(); }; });
-                    await qz.websocket.connect({ host: host.ip });
-                    report += `  Conexion: OK\n`;
-
-                    const found = await qz.printers.find();
-                    report += `  Impresoras encontradas: ${found.length}\n`;
-                    for (const p of found) {
-                        const expected = host.printers.includes(p) ? ' [CONFIGURADA]' : '';
-                        report += `    - ${p}${expected}\n`;
-                    }
-
-                    for (const expected of host.printers) {
-                        if (!found.includes(expected)) {
-                            report += `  !! FALTA: "${expected}" no encontrada en esta PC\n`;
-                        }
-                    }
-
-                    await qz.websocket.disconnect();
-                } catch (e) {
-                    report += `  Conexion: ERROR - ${e.message}\n`;
-                    report += `  Verificar:\n`;
-                    report += `    - QZ Tray esta corriendo en esa PC?\n`;
-                    report += `    - Esta PC esta en la misma red WiFi?\n`;
-                    report += `    - IP ${host.ip} es correcta?\n`;
-                }
-                report += '\n';
-            }
-
-            report += 'Desde esta PC: ' + window.location.hostname + '\n';
-            report += 'Hora: ' + new Date().toLocaleString('es-AR');
-
-            console.log(report);
-            alert(report);
+            // Cierre de caja se visualiza en pantalla, no se imprime desde la web
+            showToast('El cierre se muestra en pantalla. Para imprimir usa la app de impresion.', 'info');
         }
 
         // ==================== NOTIFICACION WHATSAPP ====================
