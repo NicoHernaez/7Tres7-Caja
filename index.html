@@ -142,6 +142,22 @@
         </div>
     </div>
 
+    <!-- Modal Tiempo Estimado -->
+    <div id="modal-tiempo" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-60" onclick="closeTimePicker()"></div>
+        <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto bg-white rounded-2xl shadow-2xl z-10 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-1 text-center">Tiempo estimado</h3>
+            <p class="text-sm text-gray-500 mb-4 text-center">Selecciona el tiempo de preparacion</p>
+            <div class="grid grid-cols-2 gap-3 mb-4" id="time-options">
+                <button onclick="selectTime(25)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">25 min</button>
+                <button onclick="selectTime(35)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">35 min</button>
+                <button onclick="selectTime(45)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">45 min</button>
+                <button onclick="selectTime(55)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">55 min</button>
+            </div>
+            <button onclick="closeTimePicker()" class="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition">Cancelar</button>
+        </div>
+    </div>
+
     <!-- Modal Cierre de Caja -->
     <div id="modal-cierre" class="hidden fixed inset-0 z-50">
         <div class="absolute inset-0 bg-black bg-opacity-60" onclick="closeCierreCaja()"></div>
@@ -1434,7 +1450,28 @@
         }
 
         // ==================== ORDER STATUS UPDATES ====================
-        async function confirmOrder(orderId) {
+        // Store pending confirmation order ID for time picker
+        let pendingConfirmOrderId = null;
+
+        function confirmOrder(orderId) {
+            // Show time picker instead of confirming directly
+            pendingConfirmOrderId = orderId;
+            document.getElementById('modal-tiempo').classList.remove('hidden');
+        }
+
+        function closeTimePicker() {
+            pendingConfirmOrderId = null;
+            document.getElementById('modal-tiempo').classList.add('hidden');
+        }
+
+        function selectTime(minutes) {
+            if (!pendingConfirmOrderId) return;
+            const orderId = pendingConfirmOrderId;
+            closeTimePicker();
+            doConfirmOrder(orderId, minutes);
+        }
+
+        async function doConfirmOrder(orderId, estimatedMinutes) {
             try {
                 const { error } = await db.from('orders').update({
                     status: 'confirmed',
@@ -1444,14 +1481,14 @@
 
                 if (error) throw error;
 
-                showToast('Pedido confirmado', 'success');
+                showToast(`Pedido confirmado (${estimatedMinutes} min)`, 'success');
 
                 // Impresion automatica via Supabase trigger (create_print_jobs_for_order)
                 // No se necesita llamar a printOrder(), el trigger crea los print_jobs
                 // y la app Electron los recibe via Realtime
 
-                // Notificar cliente por WhatsApp
-                notifyCustomerWhatsApp(orderId, 'confirmed');
+                // Notificar cliente por WhatsApp con tiempo estimado
+                notifyCustomerWhatsApp(orderId, 'confirmed', estimatedMinutes);
 
                 // Update local state immediately
                 const idx = allOrders.findIndex(o => o.id === orderId);
@@ -1782,7 +1819,7 @@
         }
 
         // ==================== NOTIFICACION WHATSAPP ====================
-        async function notifyCustomerWhatsApp(orderId, event) {
+        async function notifyCustomerWhatsApp(orderId, event, estimatedMinutes = null) {
             try {
                 let order = allOrders.find(o => o.id === orderId);
                 if (!order) {
@@ -1794,11 +1831,11 @@
                 if (!phone) return;
                 const cleanPhone = phone.replace(/\D/g, '');
                 const name = order.customers?.name || (order.customer_notes?.match(/Nombre: ([^|]+)/)?.[1]?.trim()) || '';
-                const deliveryLabel = order.delivery_type === 'pickup' ? 'retiro en local' : 'delivery';
 
                 let msg = '';
                 if (event === 'confirmed') {
-                    msg = `Hola ${name}! Tu pedido #${order.order_number} fue *confirmado* y ya estamos preparandolo. Tipo: ${deliveryLabel}. Total: $${parseFloat(order.total).toLocaleString('es-AR')}. Gracias por elegir 7Tres7!`;
+                    const timeText = estimatedMinutes ? ` Tiempo estimado: *${estimatedMinutes} minutos*.` : '';
+                    msg = `Hola ${name}! Tu pedido #${order.order_number} fue *confirmado*.${timeText} Total: $${parseFloat(order.total).toLocaleString('es-AR')}. Gracias por elegir 7Tres7!`;
                 } else if (event === 'ready') {
                     msg = order.delivery_type === 'pickup'
                         ? `Hola ${name}! Tu pedido #${order.order_number} esta *listo para retirar*. Te esperamos en Calle 18 N 737. Gracias!`
