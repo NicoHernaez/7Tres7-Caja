@@ -713,14 +713,14 @@
                 quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-urgent w-24">CONFIRMAR</button>`;
             } else if (order.status === 'confirmed') {
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-confirmed w-24 text-center inline-block">CONFIRMADO</span>`;
-            } else if (order.status === 'preparing') {
-                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-preparing w-24 text-center inline-block">PREPARANDO</span>`;
-            } else if (order.status === 'ready' && isDelivery) {
+            } else if ((order.status === 'preparing' || order.status === 'confirmed') && isDelivery) {
                 quickBtn = `<button onclick="event.stopPropagation(); openEnviarModal('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-blue w-24">ENVIAR</button>`;
+            } else if (order.status === 'preparing' || order.status === 'confirmed') {
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-preparing w-24 text-center inline-block">PREPARANDO</span>`;
             } else if (order.status === 'ready') {
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-ready w-24 text-center inline-block">LISTO</span>`;
             } else if (order.status === 'delivering') {
-                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENVIAR</button>`;
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENTREGADO</button>`;
             }
 
             const completedClass = (order.status === 'delivered' || order.status === 'cancelled') ? 'opacity-50' : '';
@@ -852,12 +852,10 @@
                 mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-urgent">✓ CONFIRMAR PEDIDO</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 if (isDelivery) {
-                    mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-purple">✓ MARCAR LISTO</button>`;
+                    mainActionHTML = `<button onclick="openEnviarModal('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-blue">🚚 ENVIAR CON CADETE</button>`;
                 } else {
                     mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
                 }
-            } else if (order.status === 'ready' && isDelivery) {
-                mainActionHTML = `<button onclick="openEnviarModal('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-blue">🚚 ENVIAR CON CADETE</button>`;
             } else if (order.status === 'delivering') {
                 mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
             }
@@ -1658,9 +1656,8 @@
             if (!order) return;
             const isDelivery = order.delivery_type === 'delivery';
             if (order.status === 'pending') confirmOrder(order.id);
-            else if ((order.status === 'confirmed' || order.status === 'preparing') && isDelivery) markReady(order.id);
+            else if ((order.status === 'confirmed' || order.status === 'preparing') && isDelivery) openEnviarModal(order.id);
             else if ((order.status === 'confirmed' || order.status === 'preparing') && !isDelivery) markDelivered(order.id);
-            else if (order.status === 'ready' && isDelivery) openEnviarModal(order.id);
             else if (order.status === 'delivering') markDelivered(order.id);
         }
 
