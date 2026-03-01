@@ -666,7 +666,7 @@
             const groupDefs = [
                 { key: 'pending', emoji: '⏳', label: 'Pendientes', filter: o => o.status === 'pending' },
                 { key: 'preparing', emoji: '🔥', label: 'En Preparacion', filter: o => o.status === 'preparing' || o.status === 'confirmed' },
-                { key: 'delivering', emoji: '🚚', label: 'Enviados', filter: o => o.status === 'delivering' },
+                { key: 'delivering', emoji: '🚚', label: 'En Camino', filter: o => o.status === 'delivering' },
                 { key: 'delivered', emoji: '📦', label: 'Entregados', filter: o => o.status === 'delivered' || o.status === 'ready' },
                 { key: 'cancelled', emoji: '❌', label: 'Cancelados', filter: o => o.status === 'cancelled' }
             ];
@@ -720,7 +720,7 @@
             } else if (order.status === 'ready') {
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-ready w-24 text-center inline-block">LISTO</span>`;
             } else if (order.status === 'delivering') {
-                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-delivering w-24 text-center inline-block">ENVIADO</span>`;
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENVIAR</button>`;
             }
 
             const completedClass = (order.status === 'delivered' || order.status === 'cancelled') ? 'opacity-50' : '';
