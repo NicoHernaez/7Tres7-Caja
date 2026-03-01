@@ -198,6 +198,17 @@
         </div>
     </div>
 
+    <!-- Modal Enviar Pedido (selector cadete) -->
+    <div id="modal-enviar" class="hidden fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeEnviarModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm glass-card shadow-2xl overflow-hidden z-10 p-6">
+            <h3 class="text-lg font-bold text-white mb-1">Enviar pedido</h3>
+            <p class="text-sm text-gray-400 mb-5">Selecciona el cadete que lleva el pedido</p>
+            <div id="enviar-cadetes" class="space-y-2 mb-4"></div>
+            <button onclick="closeEnviarModal()" class="w-full py-2 text-sm text-gray-500 hover:text-gray-300 transition">Cancelar</button>
+        </div>
+    </div>
+
     <!-- Modal Cierre de Caja -->
     <div id="modal-cierre" class="hidden fixed inset-0 z-50">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCierreCaja()"></div>
@@ -655,7 +666,7 @@
             const groupDefs = [
                 { key: 'pending', emoji: '⏳', label: 'Pendientes', filter: o => o.status === 'pending' },
                 { key: 'preparing', emoji: '🔥', label: 'En Preparacion', filter: o => o.status === 'preparing' || o.status === 'confirmed' },
-                { key: 'delivering', emoji: '🚚', label: 'En Camino', filter: o => o.status === 'delivering' },
+                { key: 'delivering', emoji: '🚚', label: 'Enviados', filter: o => o.status === 'delivering' },
                 { key: 'delivered', emoji: '📦', label: 'Entregados', filter: o => o.status === 'delivered' || o.status === 'ready' },
                 { key: 'cancelled', emoji: '❌', label: 'Cancelados', filter: o => o.status === 'cancelled' }
             ];
@@ -704,10 +715,12 @@
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-confirmed w-24 text-center inline-block">CONFIRMADO</span>`;
             } else if (order.status === 'preparing') {
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-preparing w-24 text-center inline-block">PREPARANDO</span>`;
-            } else if (order.status === 'delivering') {
-                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-delivering w-24 text-center inline-block">EN CAMINO</span>`;
+            } else if (order.status === 'ready' && isDelivery) {
+                quickBtn = `<button onclick="event.stopPropagation(); openEnviarModal('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-blue w-24">ENVIAR</button>`;
             } else if (order.status === 'ready') {
                 quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-ready w-24 text-center inline-block">LISTO</span>`;
+            } else if (order.status === 'delivering') {
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-delivering w-24 text-center inline-block">ENVIADO</span>`;
             }
 
             const completedClass = (order.status === 'delivered' || order.status === 'cancelled') ? 'opacity-50' : '';
@@ -844,7 +857,7 @@
                     mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
                 }
             } else if (order.status === 'ready' && isDelivery) {
-                mainActionHTML = `<button onclick="markDelivering('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-blue">🚚 MARCAR ENVIADO</button>`;
+                mainActionHTML = `<button onclick="openEnviarModal('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-blue">🚚 ENVIAR CON CADETE</button>`;
             } else if (order.status === 'delivering') {
                 mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
             }
@@ -1523,6 +1536,66 @@
             }
         }
 
+        // ==================== ENVIAR PEDIDO (cadete + notify) ====================
+        let enviarOrderId = null;
+
+        function openEnviarModal(orderId) {
+            enviarOrderId = orderId;
+            const container = document.getElementById('enviar-cadetes');
+            const cadeteList = staffCache.filter(s => s.role === 'cadete');
+
+            if (cadeteList.length === 0) {
+                container.innerHTML = `<p class="text-sm text-gray-400 text-center py-4">No hay cadetes. Agrega desde ⚙️ en el detalle del pedido.</p>`;
+            } else {
+                container.innerHTML = cadeteList.map(c => `
+                    <button onclick="enviarConCadete('${c.name}')" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-white/5 border border-white/10 hover:border-blue-500 hover:bg-blue-500/10 transition text-left">
+                        <span class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-bold">${c.name.charAt(0).toUpperCase()}</span>
+                        <span class="text-white font-medium">${c.name}</span>
+                    </button>
+                `).join('');
+            }
+            document.getElementById('modal-enviar').classList.remove('hidden');
+        }
+
+        function closeEnviarModal() {
+            document.getElementById('modal-enviar').classList.add('hidden');
+            enviarOrderId = null;
+        }
+
+        async function enviarConCadete(cadeteName) {
+            if (!enviarOrderId) return;
+            const orderId = enviarOrderId;
+            closeEnviarModal();
+
+            try {
+                const { error } = await db.from('orders').update({
+                    status: 'delivering',
+                    delivering_at: new Date().toISOString(),
+                    assigned_to: cadeteName,
+                    updated_at: new Date().toISOString()
+                }).eq('id', orderId);
+
+                if (error) throw error;
+                showToast(`Pedido enviado con ${cadeteName}`, 'success');
+
+                // Notificar cliente por WhatsApp con nombre del cadete
+                notifyCustomerWhatsApp(orderId, 'delivering', null, cadeteName);
+
+                const idx = allOrders.findIndex(o => o.id === orderId);
+                if (idx >= 0) {
+                    allOrders[idx].status = 'delivering';
+                    allOrders[idx].delivering_at = new Date().toISOString();
+                    allOrders[idx].assigned_to = cadeteName;
+                    allOrders[idx].updated_at = new Date().toISOString();
+                    renderOrderList();
+                    if (selectedOrderId === orderId) renderOrderDetail();
+                }
+            } catch (e) {
+                console.error('Error enviando pedido:', e);
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
         async function markDelivering(orderId) {
             try {
                 const { error } = await db.from('orders').update({
@@ -1587,7 +1660,7 @@
             if (order.status === 'pending') confirmOrder(order.id);
             else if ((order.status === 'confirmed' || order.status === 'preparing') && isDelivery) markReady(order.id);
             else if ((order.status === 'confirmed' || order.status === 'preparing') && !isDelivery) markDelivered(order.id);
-            else if (order.status === 'ready' && isDelivery) markDelivering(order.id);
+            else if (order.status === 'ready' && isDelivery) openEnviarModal(order.id);
             else if (order.status === 'delivering') markDelivered(order.id);
         }
 
@@ -1808,7 +1881,7 @@
         }
 
         // ==================== NOTIFICACION WHATSAPP ====================
-        async function notifyCustomerWhatsApp(orderId, event, estimatedMinutes = null) {
+        async function notifyCustomerWhatsApp(orderId, event, estimatedMinutes = null, cadeteName = null) {
             try {
                 let order = allOrders.find(o => o.id === orderId);
                 if (!order) {
@@ -1830,7 +1903,8 @@
                         ? `Hola ${name}! Tu pedido #${order.order_number} esta *listo para retirar*. Te esperamos en Calle 18 N 737. Gracias!`
                         : `Hola ${name}! Tu pedido #${order.order_number} esta *listo* y sale en un ratito. Gracias por elegir 7Tres7!`;
                 } else if (event === 'delivering') {
-                    msg = `Hola ${name}! Tu pedido #${order.order_number} ya *salio en camino*! Llegamos en breve. Gracias por elegir 7Tres7!`;
+                    const cadeteText = cadeteName ? ` Lo lleva *${cadeteName}*.` : '';
+                    msg = `Hola ${name}! Tu pedido #${order.order_number} ya *salio en camino*!${cadeteText} Llegamos en breve. Gracias por elegir 7Tres7!`;
                 }
 
                 if (msg) window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
