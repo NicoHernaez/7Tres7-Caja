@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Impresion manejada por Supabase Trigger + Electron App -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥟</text></svg>">
+    <link rel="icon" href="Empanada-avatar.png">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #f1f5f9; }
 
@@ -55,6 +55,9 @@
         .btn-glow-purple:hover { box-shadow: 0 0 25px rgba(139,92,246,0.5); filter: brightness(1.1); }
         .btn-glow-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: white; box-shadow: 0 0 15px rgba(249,115,22,0.3); transition: all 0.2s; }
         .btn-glow-orange:hover { box-shadow: 0 0 25px rgba(249,115,22,0.5); filter: brightness(1.1); }
+        .btn-glow-urgent { background: linear-gradient(135deg, #ef4444, #f97316); color: white; box-shadow: 0 0 15px rgba(239,68,68,0.4); transition: all 0.2s; animation: urgentPulse 1.5s ease-in-out infinite; }
+        .btn-glow-urgent:hover { box-shadow: 0 0 25px rgba(239,68,68,0.6); filter: brightness(1.1); }
+        @keyframes urgentPulse { 0%, 100% { box-shadow: 0 0 15px rgba(239,68,68,0.4); transform: scale(1); } 50% { box-shadow: 0 0 25px rgba(249,115,22,0.6); transform: scale(1.03); } }
 
         /* Detail panel animation */
         .detail-enter { animation: slideInRight 0.2s ease; }
@@ -91,7 +94,7 @@
     <div id="login-screen" class="min-h-screen flex items-center justify-center" style="background: radial-gradient(ellipse at center, #1a1035 0%, #0a0a0f 70%);">
         <div class="glass-card p-8 w-full max-w-md shadow-2xl">
             <div class="text-center mb-8">
-                <div class="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center text-5xl" style="background: linear-gradient(135deg, #f97316, #ef4444);">🥟</div>
+                <img src="Empanada-avatar.png" alt="7Tres7" class="w-24 h-24 mx-auto rounded-2xl object-cover shadow-lg" style="border: 2px solid rgba(249,115,22,0.4);">
                 <h1 class="text-3xl font-bold mt-4 text-white">7TRES7 <span class="text-orange-400">CAJA</span></h1>
                 <p class="text-gray-400">Panel de pedidos y caja</p>
             </div>
@@ -126,7 +129,7 @@
         <!-- Header -->
         <header class="bg-[#0d1117] text-white px-4 py-2.5 flex items-center justify-between flex-shrink-0 z-20 border-b border-white/5">
             <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style="background: linear-gradient(135deg, #f97316, #ef4444);">🥟</div>
+                <img src="Empanada-avatar.png" alt="7Tres7" class="w-8 h-8 rounded-lg object-cover">
                 <h1 class="font-bold text-lg leading-tight">7TRES7 <span class="text-orange-400">CAJA</span></h1>
             </div>
             <div class="flex items-center space-x-4 text-sm">
@@ -619,7 +622,8 @@
             }
 
             // Sort by status priority, then by time within each group
-            const statusPriority = { 'pending': 0, 'confirmed': 1, 'preparing': 1, 'ready': 2, 'delivering': 3, 'delivered': 4, 'cancelled': 5 };
+            // preparing(1) before confirmed(2) within EN PREPARACION, ready merges into ENTREGADOS
+            const statusPriority = { 'pending': 0, 'preparing': 1, 'confirmed': 2, 'delivering': 3, 'ready': 4, 'delivered': 4, 'cancelled': 5 };
             orders.sort((a, b) => {
                 const pa = statusPriority[a.status] ?? 3;
                 const pb = statusPriority[b.status] ?? 3;
@@ -650,10 +654,9 @@
             // Group by status for separators
             const groupDefs = [
                 { key: 'pending', emoji: '⏳', label: 'Pendientes', filter: o => o.status === 'pending' },
-                { key: 'preparing', emoji: '🔥', label: 'En Preparacion', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
-                { key: 'ready', emoji: '✅', label: 'Listos', filter: o => o.status === 'ready' },
+                { key: 'preparing', emoji: '🔥', label: 'En Preparacion', filter: o => o.status === 'preparing' || o.status === 'confirmed' },
                 { key: 'delivering', emoji: '🚚', label: 'En Camino', filter: o => o.status === 'delivering' },
-                { key: 'delivered', emoji: '📦', label: 'Entregados', filter: o => o.status === 'delivered' },
+                { key: 'delivered', emoji: '📦', label: 'Entregados', filter: o => o.status === 'delivered' || o.status === 'ready' },
                 { key: 'cancelled', emoji: '❌', label: 'Cancelados', filter: o => o.status === 'cancelled' }
             ];
 
@@ -693,20 +696,18 @@
                 timeHTML = `<span class="text-xs text-red-400/60 w-14 text-center">✕</span>`;
             }
 
-            // Quick action button with glow
+            // Quick action: CONFIRMAR is an action button (urgent), rest are status badges
             let quickBtn = '';
             if (order.status === 'pending') {
-                quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">CONFIRMAR</button>`;
-            } else if (order.status === 'confirmed' || order.status === 'preparing') {
-                if (isDelivery) {
-                    quickBtn = `<button onclick="event.stopPropagation(); markReady('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-purple w-24">LISTO</button>`;
-                } else {
-                    quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENTREGADO</button>`;
-                }
-            } else if (order.status === 'ready' && isDelivery) {
-                quickBtn = `<button onclick="event.stopPropagation(); markDelivering('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-blue w-24">ENVIADO</button>`;
+                quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-urgent w-24">CONFIRMAR</button>`;
+            } else if (order.status === 'confirmed') {
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-confirmed w-24 text-center inline-block">CONFIRMADO</span>`;
+            } else if (order.status === 'preparing') {
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-preparing w-24 text-center inline-block">PREPARANDO</span>`;
             } else if (order.status === 'delivering') {
-                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENTREGADO</button>`;
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-delivering w-24 text-center inline-block">EN CAMINO</span>`;
+            } else if (order.status === 'ready') {
+                quickBtn = `<span class="ml-2 text-xs font-bold px-3 py-1.5 rounded status-badge-ready w-24 text-center inline-block">LISTO</span>`;
             }
 
             const completedClass = (order.status === 'delivered' || order.status === 'cancelled') ? 'opacity-50' : '';
@@ -835,7 +836,7 @@
             // Main action button with glow
             let mainActionHTML = '';
             if (order.status === 'pending') {
-                mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ CONFIRMAR PEDIDO</button>`;
+                mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-urgent">✓ CONFIRMAR PEDIDO</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 if (isDelivery) {
                     mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-purple">✓ MARCAR LISTO</button>`;
