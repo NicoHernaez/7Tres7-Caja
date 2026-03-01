@@ -9,70 +9,114 @@
     <!-- Impresion manejada por Supabase Trigger + Electron App -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥟</text></svg>">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        .toast { animation: slideIn 0.3s ease; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #f1f5f9; }
+
+        /* Glass */
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+        .glass-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; }
+
+        /* Toast */
+        .toast { animation: slideIn 0.3s ease; backdrop-filter: blur(8px); }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        /* Order list */
+        /* Order cards */
         .order-row { transition: all 0.15s ease; }
-        .order-row:hover { background: #eff6ff; }
-        .order-row.selected { background: #dbeafe; border-left-color: #3b82f6 !important; }
+        .order-row:hover { background: rgba(255,255,255,0.04); }
+        .order-row.selected { background: rgba(59,130,246,0.1); border-left-color: #3b82f6 !important; }
         .order-row.late { animation: latePulse 2s infinite; }
-        @keyframes latePulse { 0%, 100% { background: white; } 50% { background: #fef2f2; } }
+        @keyframes latePulse { 0%, 100% { background: rgba(255,255,255,0.02); } 50% { background: rgba(239,68,68,0.08); } }
+
+        /* Status badges with glow */
+        .status-badge-pending { background: rgba(245,158,11,0.15); color: #fbbf24; box-shadow: 0 0 8px rgba(245,158,11,0.2); }
+        .status-badge-confirmed { background: rgba(59,130,246,0.15); color: #60a5fa; box-shadow: 0 0 8px rgba(59,130,246,0.2); }
+        .status-badge-preparing { background: rgba(249,115,22,0.15); color: #fb923c; box-shadow: 0 0 8px rgba(249,115,22,0.2); }
+        .status-badge-ready { background: rgba(34,197,94,0.15); color: #4ade80; box-shadow: 0 0 8px rgba(34,197,94,0.2); }
+        .status-badge-delivering { background: rgba(59,130,246,0.15); color: #60a5fa; box-shadow: 0 0 8px rgba(59,130,246,0.2); }
+        .status-badge-delivered { background: rgba(100,116,139,0.15); color: #94a3b8; }
+        .status-badge-cancelled { background: rgba(239,68,68,0.15); color: #f87171; box-shadow: 0 0 8px rgba(239,68,68,0.2); }
+
+        /* Status strip gradients */
+        .status-strip { width: 4px; border-radius: 2px; flex-shrink: 0; }
+        .strip-pending { background: linear-gradient(180deg, #f59e0b, #eab308); }
+        .strip-confirmed, .strip-preparing { background: linear-gradient(180deg, #f97316, #ea580c); }
+        .strip-ready { background: linear-gradient(180deg, #22c55e, #16a34a); }
+        .strip-delivering { background: linear-gradient(180deg, #3b82f6, #6366f1); }
+        .strip-delivered { background: linear-gradient(180deg, #64748b, #475569); }
+        .strip-cancelled { background: linear-gradient(180deg, #ef4444, #dc2626); }
+
+        /* Glow buttons */
+        .btn-glow-green { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; box-shadow: 0 0 15px rgba(34,197,94,0.3); transition: all 0.2s; }
+        .btn-glow-green:hover { box-shadow: 0 0 25px rgba(34,197,94,0.5); filter: brightness(1.1); }
+        .btn-glow-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 0 15px rgba(59,130,246,0.3); transition: all 0.2s; }
+        .btn-glow-blue:hover { box-shadow: 0 0 25px rgba(59,130,246,0.5); filter: brightness(1.1); }
+        .btn-glow-purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 0 15px rgba(139,92,246,0.3); transition: all 0.2s; }
+        .btn-glow-purple:hover { box-shadow: 0 0 25px rgba(139,92,246,0.5); filter: brightness(1.1); }
+        .btn-glow-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: white; box-shadow: 0 0 15px rgba(249,115,22,0.3); transition: all 0.2s; }
+        .btn-glow-orange:hover { box-shadow: 0 0 25px rgba(249,115,22,0.5); filter: brightness(1.1); }
 
         /* Detail panel animation */
         .detail-enter { animation: slideInRight 0.2s ease; }
         @keyframes slideInRight { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 
-        /* Scrollbar */
+        /* Scrollbar dark */
         .order-list-scroll::-webkit-scrollbar, .detail-scroll::-webkit-scrollbar { width: 6px; }
-        .order-list-scroll::-webkit-scrollbar-thumb, .detail-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-        .order-list-scroll::-webkit-scrollbar-thumb:hover, .detail-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .order-list-scroll::-webkit-scrollbar-track, .detail-scroll::-webkit-scrollbar-track { background: transparent; }
+        .order-list-scroll::-webkit-scrollbar-thumb, .detail-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .order-list-scroll::-webkit-scrollbar-thumb:hover, .detail-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-        /* Tab active */
-        .tab-btn.active { background: #111827; color: white; }
-        .mother-tab.active { color: white; border-bottom-color: #fb923c; }
-        .sub-tab.active { background: #111827; color: white; }
+        /* Mother tab active */
+        .mother-tab { position: relative; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .mother-tab.active { color: white !important; border-bottom-color: transparent !important; }
+        .mother-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #f97316, #ef4444); border-radius: 1px; }
 
-        /* Animate pulse for late timers */
+        /* Timer pulse */
         .timer-pulse { animation: pulse 1.5s infinite; }
+
+        /* Group separator */
+        .group-separator { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #64748b; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .group-separator::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+        /* Dark input */
+        .dark-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; }
+        .dark-input:focus { outline: none; ring: 2px; border-color: #f97316; box-shadow: 0 0 0 2px rgba(249,115,22,0.3); }
+        .dark-input::placeholder { color: #64748b; }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-[#0a0a0f]">
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     <!-- Login Screen -->
-    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gray-900">
-        <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+    <div id="login-screen" class="min-h-screen flex items-center justify-center" style="background: radial-gradient(ellipse at center, #1a1035 0%, #0a0a0f 70%);">
+        <div class="glass-card p-8 w-full max-w-md shadow-2xl">
             <div class="text-center mb-8">
-                <span class="text-6xl">🥟</span>
-                <h1 class="text-3xl font-bold mt-4">7TRES7 CAJA</h1>
-                <p class="text-gray-500">Panel de pedidos y caja</p>
+                <div class="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center text-5xl" style="background: linear-gradient(135deg, #f97316, #ef4444);">🥟</div>
+                <h1 class="text-3xl font-bold mt-4 text-white">7TRES7 <span class="text-orange-400">CAJA</span></h1>
+                <p class="text-gray-400">Panel de pedidos y caja</p>
             </div>
             <div class="space-y-4">
-                <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center space-x-3 bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition">
+                <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center space-x-3 bg-white/5 border border-white/10 text-white py-3 rounded-lg font-semibold hover:bg-white/10 transition">
                     <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                     <span>Iniciar sesion con Google</span>
                 </button>
 
                 <div class="relative my-4">
-                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div>
-                    <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-500">o</span></div>
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+                    <div class="relative flex justify-center text-sm"><span class="px-2 text-gray-500" style="background: rgba(255,255,255,0.05);">o</span></div>
                 </div>
 
                 <div id="magic-link-form">
                     <div class="flex space-x-2">
-                        <input type="email" id="magic-email" class="flex-1 border rounded-lg px-4 py-3" placeholder="tu@email.com">
-                        <button onclick="loginWithMagicLink()" class="bg-orange-500 text-white px-4 py-3 rounded-lg font-semibold hover:bg-orange-600 whitespace-nowrap">Enviar link</button>
+                        <input type="email" id="magic-email" class="flex-1 bg-white/5 border border-white/10 text-white rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" placeholder="tu@email.com">
+                        <button onclick="loginWithMagicLink()" class="btn-glow-orange px-4 py-3 rounded-lg font-semibold whitespace-nowrap">Enviar link</button>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2 text-center">Te enviamos un link de acceso a tu email</p>
+                    <p class="text-xs text-gray-500 mt-2 text-center">Te enviamos un link de acceso a tu email</p>
                 </div>
 
-                <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
-                <p id="login-success" class="text-green-600 text-sm text-center hidden"></p>
-                <p id="login-loading" class="text-gray-500 text-sm text-center hidden pulse">Verificando sesion...</p>
+                <p id="login-error" class="text-red-400 text-sm text-center hidden"></p>
+                <p id="login-success" class="text-green-400 text-sm text-center hidden"></p>
+                <p id="login-loading" class="text-gray-400 text-sm text-center hidden pulse">Verificando sesion...</p>
             </div>
         </div>
     </div>
@@ -80,61 +124,54 @@
     <!-- Main App -->
     <div id="main-app" class="hidden h-screen flex flex-col">
         <!-- Header -->
-        <header class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between flex-shrink-0 z-20 shadow-lg">
+        <header class="bg-[#0d1117] text-white px-4 py-2.5 flex items-center justify-between flex-shrink-0 z-20 border-b border-white/5">
             <div class="flex items-center space-x-3">
-                <span class="text-xl">🔥</span>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style="background: linear-gradient(135deg, #f97316, #ef4444);">🥟</div>
                 <h1 class="font-bold text-lg leading-tight">7TRES7 <span class="text-orange-400">CAJA</span></h1>
             </div>
             <div class="flex items-center space-x-4 text-sm">
-                <div id="stats-bar" class="hidden md:flex items-center space-x-3 bg-gray-800 rounded-lg px-4 py-1.5">
+                <div id="stats-bar" class="hidden md:flex items-center space-x-3 glass rounded-lg px-4 py-1.5">
                     <span>Hoy: <strong id="stat-revenue" class="text-green-400">$0</strong></span>
-                    <span class="text-gray-600">|</span>
+                    <span class="text-white/10">|</span>
                     <span><strong id="stat-count" class="text-orange-400">0</strong> pedidos</span>
-                    <span class="text-gray-600">|</span>
+                    <span class="text-white/10">|</span>
                     <span>Prom: <strong id="stat-avg" class="text-blue-400">$0</strong></span>
-                    <span id="late-badge" class="hidden bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"></span>
+                    <span id="late-badge" class="hidden bg-red-500/20 text-red-400 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"></span>
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <button onclick="openCierreCaja()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition" title="F12">CIERRE DE CAJA</button>
-                <button onclick="logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-lg hover:bg-gray-800 transition text-sm" title="Cerrar sesion">Salir</button>
+                <button onclick="openCierreCaja()" class="btn-glow-purple text-xs font-bold px-3 py-2 rounded-lg" title="F12">CIERRE DE CAJA</button>
+                <button onclick="logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-lg hover:bg-white/5 transition text-sm" title="Cerrar sesion">Salir</button>
             </div>
         </header>
 
         <!-- Mother Tabs (type of service) -->
-        <div class="bg-gray-800 px-4 py-0 flex items-center justify-between flex-shrink-0">
+        <div class="bg-[#0d1117] px-4 py-0 flex items-center justify-between flex-shrink-0 border-b border-white/5">
             <div class="flex items-center space-x-0" id="mother-tab-bar">
-                <button class="mother-tab active text-sm font-bold px-5 py-2.5 text-white border-b-2 border-orange-400 transition" onclick="switchMotherTab('todos')" data-mtab="todos">Todos</button>
-                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-400 border-b-2 border-transparent hover:text-white transition" onclick="switchMotherTab('mostrador')" data-mtab="mostrador">🏪 Mostrador</button>
-                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-400 border-b-2 border-transparent hover:text-white transition" onclick="switchMotherTab('delivery')" data-mtab="delivery">🚚 Delivery</button>
-                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-500 border-b-2 border-transparent cursor-default opacity-50" disabled>🍽️ Salon</button>
+                <button class="mother-tab active text-sm font-bold px-5 py-2.5 text-white transition" onclick="switchMotherTab('todos')" data-mtab="todos">Todos</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-500 hover:text-white transition" onclick="switchMotherTab('mostrador')" data-mtab="mostrador">🏪 Mostrador</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-500 hover:text-white transition" onclick="switchMotherTab('delivery')" data-mtab="delivery">🚚 Delivery</button>
+                <button class="mother-tab text-sm font-bold px-5 py-2.5 text-gray-500 hover:text-white transition" onclick="switchMotherTab('salon')" data-mtab="salon">🍽️ Salon</button>
             </div>
             <div class="flex items-center space-x-2">
                 <div class="relative">
-                    <input type="text" id="search-input" class="bg-gray-700 border border-gray-600 text-white rounded-lg pl-8 pr-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder-gray-400" placeholder="Buscar # o nombre..." oninput="onSearchInput(this.value)" title="F2">
-                    <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" id="search-input" class="bg-white/5 border border-white/10 text-white rounded-lg pl-8 pr-3 py-1.5 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder-gray-500" placeholder="Buscar # o nombre..." oninput="onSearchInput(this.value)" title="F2">
+                    <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
-            </div>
-        </div>
-
-        <!-- Sub Tabs (status within service type) -->
-        <div class="bg-white border-b border-gray-200 px-4 py-1.5 flex items-center flex-shrink-0" style="min-height:40px;">
-            <div class="flex items-center space-x-1" id="sub-tab-bar">
-                <!-- Rendered dynamically by renderSubTabs() -->
             </div>
         </div>
 
         <!-- Master-Detail Layout -->
         <div class="flex-1 flex overflow-hidden">
             <!-- Order List (left panel ~58%) -->
-            <div class="w-[58%] flex flex-col border-r border-gray-200 bg-white">
-                <div id="order-list" class="flex-1 overflow-y-auto order-list-scroll">
+            <div class="w-[58%] flex flex-col border-r border-white/5 bg-[#0a0a0f]">
+                <div id="order-list" class="flex-1 overflow-y-auto order-list-scroll p-1">
                     <!-- Order rows rendered here -->
                 </div>
             </div>
 
             <!-- Order Detail (right panel ~42%) -->
-            <div class="w-[42%] flex flex-col bg-gray-50">
+            <div class="w-[42%] flex flex-col bg-[#0d1117]">
                 <div id="order-detail" class="flex-1 overflow-y-auto detail-scroll">
                     <!-- Detail rendered here -->
                 </div>
@@ -144,33 +181,33 @@
 
     <!-- Modal Tiempo Estimado -->
     <div id="modal-tiempo" class="hidden fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-60" onclick="closeTimePicker()"></div>
-        <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto bg-white rounded-2xl shadow-2xl z-10 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-1 text-center">Tiempo estimado</h3>
-            <p class="text-sm text-gray-500 mb-4 text-center">Selecciona el tiempo de preparacion</p>
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeTimePicker()"></div>
+        <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto glass-card shadow-2xl z-10 p-6">
+            <h3 class="text-lg font-bold text-white mb-1 text-center">Tiempo estimado</h3>
+            <p class="text-sm text-gray-400 mb-4 text-center">Selecciona el tiempo de preparacion</p>
             <div class="grid grid-cols-2 gap-3 mb-4" id="time-options">
-                <button onclick="selectTime(25)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">25 min</button>
-                <button onclick="selectTime(35)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">35 min</button>
-                <button onclick="selectTime(45)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">45 min</button>
-                <button onclick="selectTime(55)" class="time-btn py-4 rounded-xl border-2 border-gray-200 text-center font-bold text-lg hover:border-green-500 hover:bg-green-50 transition">55 min</button>
+                <button onclick="selectTime(25)" class="time-btn py-4 rounded-xl border-2 border-white/10 text-center font-bold text-lg text-white hover:border-green-500 hover:bg-green-500/10 transition">25 min</button>
+                <button onclick="selectTime(35)" class="time-btn py-4 rounded-xl border-2 border-white/10 text-center font-bold text-lg text-white hover:border-green-500 hover:bg-green-500/10 transition">35 min</button>
+                <button onclick="selectTime(45)" class="time-btn py-4 rounded-xl border-2 border-white/10 text-center font-bold text-lg text-white hover:border-green-500 hover:bg-green-500/10 transition">45 min</button>
+                <button onclick="selectTime(55)" class="time-btn py-4 rounded-xl border-2 border-white/10 text-center font-bold text-lg text-white hover:border-green-500 hover:bg-green-500/10 transition">55 min</button>
             </div>
-            <button onclick="closeTimePicker()" class="w-full py-2 text-sm text-gray-400 hover:text-gray-600 transition">Cancelar</button>
+            <button onclick="closeTimePicker()" class="w-full py-2 text-sm text-gray-500 hover:text-gray-300 transition">Cancelar</button>
         </div>
     </div>
 
     <!-- Modal Cierre de Caja -->
     <div id="modal-cierre" class="hidden fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-60" onclick="closeCierreCaja()"></div>
-        <div class="absolute inset-4 md:inset-8 bg-white rounded-2xl shadow-2xl overflow-y-auto z-10">
-            <div class="sticky top-0 bg-gray-900 text-white px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeCierreCaja()"></div>
+        <div class="absolute inset-4 md:inset-8 bg-[#111827] border border-white/5 rounded-2xl shadow-2xl overflow-y-auto z-10">
+            <div class="sticky top-0 bg-[#0d1117] text-white px-6 py-4 flex items-center justify-between rounded-t-2xl z-10 border-b border-white/5">
                 <h2 class="text-xl font-bold">Cierre de Caja</h2>
                 <div class="flex items-center space-x-3">
-                    <select id="cierre-turno" onchange="renderCierre()" class="bg-gray-800 text-white text-sm rounded-lg px-3 py-1.5 border border-gray-700">
+                    <select id="cierre-turno" onchange="renderCierre()" class="bg-white/5 text-white text-sm rounded-lg px-3 py-1.5 border border-white/10">
                         <option value="all">Todo el dia</option>
                         <option value="noon">Mediodia (11-16hs)</option>
                         <option value="night">Noche (18-01hs)</option>
                     </select>
-                    <button onclick="printCierreCaja()" class="bg-white text-gray-900 text-sm font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition">Imprimir</button>
+                    <button onclick="printCierreCaja()" class="bg-white/10 text-white text-sm font-bold px-4 py-1.5 rounded-lg hover:bg-white/20 transition">Imprimir</button>
                     <button onclick="closeCierreCaja()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
                 </div>
             </div>
@@ -180,17 +217,17 @@
 
     <!-- Modal Staff Manager -->
     <div id="modal-staff" class="hidden fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeStaffManager()"></div>
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden z-10">
-            <div class="bg-gray-900 text-white px-5 py-4 flex items-center justify-between">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeStaffManager()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md glass-card shadow-2xl overflow-hidden z-10">
+            <div class="bg-[#0d1117] text-white px-5 py-4 flex items-center justify-between border-b border-white/5">
                 <h2 class="font-bold text-lg">Administrar cadetes</h2>
                 <button onclick="closeStaffManager()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
             </div>
             <div class="p-5 space-y-3">
                 <div id="staff-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
-                <div class="flex space-x-2 pt-2 border-t border-gray-200">
-                    <input type="text" id="new-staff-name" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Nombre del cadete" onkeydown="if(event.key==='Enter')addStaffMember()">
-                    <button onclick="addStaffMember()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">Agregar</button>
+                <div class="flex space-x-2 pt-2 border-t border-white/5">
+                    <input type="text" id="new-staff-name" class="flex-1 bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre del cadete" onkeydown="if(event.key==='Enter')addStaffMember()">
+                    <button onclick="addStaffMember()" class="btn-glow-blue px-4 py-2 rounded-lg text-sm font-medium">Agregar</button>
                 </div>
             </div>
         </div>
@@ -198,14 +235,14 @@
 
     <!-- Modal Add Item -->
     <div id="modal-add-item" class="hidden fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeAddItemModal()"></div>
-        <div class="absolute inset-y-8 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col">
-            <div class="bg-gray-900 text-white px-5 py-4 flex items-center justify-between flex-shrink-0">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAddItemModal()"></div>
+        <div class="absolute inset-y-8 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-[#111827] border border-white/5 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col">
+            <div class="bg-[#0d1117] text-white px-5 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5">
                 <h2 class="font-bold text-lg">Agregar producto al pedido</h2>
                 <button onclick="closeAddItemModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
             </div>
-            <div class="px-5 py-3 border-b flex-shrink-0">
-                <input type="text" id="product-search-input" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Buscar producto..." oninput="filterProducts(this.value)">
+            <div class="px-5 py-3 border-b border-white/5 flex-shrink-0">
+                <input type="text" id="product-search-input" class="w-full bg-white/5 border border-white/10 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="Buscar producto..." oninput="filterProducts(this.value)">
             </div>
             <div id="product-grid" class="flex-1 overflow-y-auto p-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <!-- Products rendered here -->
@@ -239,8 +276,8 @@
 
         // UI state
         let selectedOrderId = null;
-        let motherTab = 'todos';   // 'todos', 'mostrador', 'delivery'
-        let subTab = 'pending';    // 'pending', 'preparing', 'delivering', 'delivered', 'cancelled'
+        let motherTab = 'todos';   // 'todos', 'mostrador', 'delivery', 'salon'
+        let subTab = 'pending';    // kept for backward compat but unused
         let searchQuery = '';
         let productsCache = [];
         let addItemOrderId = null;
@@ -493,22 +530,22 @@
 
             if (order.status === 'pending') {
                 // Pending: just show wait time, yellow if > 5min
-                if (minutes < 5) return { label: minutes + 'm', color: 'text-gray-500', bg: 'bg-gray-50', pulse: false, minutes };
-                return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: minutes > 10, minutes };
+                if (minutes < 5) return { label: minutes + 'm', color: 'text-gray-400', bg: 'bg-gray-500/10', pulse: false, minutes };
+                return { label: minutes + 'm', color: 'text-yellow-400', bg: 'bg-yellow-500/10', pulse: minutes > 10, minutes };
             }
 
             // For delivery orders: green < 20m, yellow < 30m, orange < 40m, red >= 40m
             if (isDelivery) {
-                if (minutes < 20) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', pulse: false, minutes };
-                if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: false, minutes };
-                if (minutes < lateThreshold) return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', pulse: false, minutes };
-                return { label: minutes + 'm', color: 'text-red-600 font-bold', bg: 'bg-red-50', pulse: true, minutes };
+                if (minutes < 20) return { label: minutes + 'm', color: 'text-green-400', bg: 'bg-green-500/10', pulse: false, minutes };
+                if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-400', bg: 'bg-yellow-500/10', pulse: false, minutes };
+                if (minutes < lateThreshold) return { label: minutes + 'm', color: 'text-orange-400', bg: 'bg-orange-500/10', pulse: false, minutes };
+                return { label: minutes + 'm', color: 'text-red-400 font-bold', bg: 'bg-red-500/10', pulse: true, minutes };
             }
 
             // For mostrador: green < 20m, yellow < 30m, orange after. No red (their problem).
-            if (minutes < 20) return { label: minutes + 'm', color: 'text-green-600', bg: 'bg-green-50', pulse: false, minutes };
-            if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-600', bg: 'bg-yellow-50', pulse: false, minutes };
-            return { label: minutes + 'm', color: 'text-orange-600', bg: 'bg-orange-50', pulse: false, minutes };
+            if (minutes < 20) return { label: minutes + 'm', color: 'text-green-400', bg: 'bg-green-500/10', pulse: false, minutes };
+            if (minutes < 30) return { label: minutes + 'm', color: 'text-yellow-400', bg: 'bg-yellow-500/10', pulse: false, minutes };
+            return { label: minutes + 'm', color: 'text-orange-400', bg: 'bg-orange-500/10', pulse: false, minutes };
         }
 
         function getElapsedLabel(fromDate) {
@@ -536,82 +573,32 @@
         function getMotherOrders() {
             if (motherTab === 'mostrador') return allOrders.filter(o => o.delivery_type === 'pickup');
             if (motherTab === 'delivery') return allOrders.filter(o => o.delivery_type === 'delivery');
+            if (motherTab === 'salon') return allOrders.filter(o => o.delivery_type === 'local');
             return allOrders; // 'todos'
         }
 
-        // Sub tabs depend on mother tab
-        // Listo = Entregado (cuando se marca listo, va directo a entregado en mostrador)
-        // Delivery tiene paso extra: Enviados (delivering)
-        function getSubTabDefs() {
-            if (motherTab === 'mostrador') {
-                return [
-                    { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
-                    { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
-                    { id: 'delivered', label: 'Entregados', filter: o => o.status === 'ready' || o.status === 'delivered' },
-                    { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
-                ];
-            }
-            if (motherTab === 'delivery') {
-                return [
-                    { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
-                    { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
-                    { id: 'delivering', label: 'Enviados', filter: o => o.status === 'ready' || o.status === 'delivering' },
-                    { id: 'delivered', label: 'Entregados', filter: o => o.status === 'delivered' },
-                    { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
-                ];
-            }
-            // todos
-            return [
-                { id: 'pending', label: 'Pendientes', filter: o => o.status === 'pending' },
-                { id: 'preparing', label: 'Preparando', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
-                { id: 'delivering', label: 'Enviados', filter: o => o.status === 'ready' || o.status === 'delivering' },
-                { id: 'delivered', label: 'Entregados', filter: o => o.status === 'delivered' },
-                { id: 'cancelled', label: 'Cancelados', filter: o => o.status === 'cancelled' }
-            ];
-        }
-
-        function renderSubTabs() {
-            const defs = getSubTabDefs();
-            const mo = getMotherOrders();
-            const bar = document.getElementById('sub-tab-bar');
-            bar.innerHTML = defs.map(d => {
-                const count = mo.filter(d.filter).length;
-                const isActive = subTab === d.id;
-                return `<button class="sub-tab ${isActive ? 'active' : ''} text-sm font-medium px-3 py-1 rounded-lg transition ${isActive ? '' : 'text-gray-600 hover:bg-gray-100'}" onclick="switchSubTab('${d.id}')" data-stab="${d.id}">${d.label} (${count})</button>`;
-            }).join('');
-        }
+        // Sub tabs removed — unified list with group separators
+        function renderSubTabs() { /* no-op: sub-tabs removed */ }
 
         function switchMotherTab(tab) {
             motherTab = tab;
-            // Update mother tab UI
             document.querySelectorAll('.mother-tab').forEach(btn => {
                 if (btn.dataset.mtab === tab) {
                     btn.classList.add('active');
-                    btn.classList.remove('text-gray-400');
-                    btn.style.borderBottomColor = '#fb923c';
-                } else if (!btn.disabled) {
+                    btn.classList.remove('text-gray-500');
+                    btn.classList.add('text-white');
+                } else {
                     btn.classList.remove('active');
-                    btn.classList.add('text-gray-400');
-                    btn.style.borderBottomColor = 'transparent';
+                    btn.classList.remove('text-white');
+                    btn.classList.add('text-gray-500');
                 }
             });
-            // Reset sub tab to 'pending' if current sub tab doesn't exist in this mother tab
-            const defs = getSubTabDefs();
-            if (!defs.find(d => d.id === subTab)) subTab = 'pending';
-            renderSubTabs();
             renderOrderList();
             renderOrderDetail();
         }
 
-        function switchSubTab(tab) {
-            subTab = tab;
-            renderSubTabs();
-            renderOrderList();
-            renderOrderDetail();
-        }
-
-        // Keep backward compat alias
-        function switchTab(tab) { switchSubTab(tab); }
+        function switchSubTab(tab) { /* no-op: sub-tabs removed */ }
+        function switchTab(tab) { /* no-op: sub-tabs removed */ }
 
         function onSearchInput(val) {
             searchQuery = val.trim().toLowerCase();
@@ -620,13 +607,6 @@
 
         function getFilteredOrders() {
             let orders = getMotherOrders();
-
-            // Sub tab filter
-            const defs = getSubTabDefs();
-            const activeDef = defs.find(d => d.id === subTab);
-            if (activeDef) {
-                orders = orders.filter(activeDef.filter);
-            }
 
             // Search filter
             if (searchQuery) {
@@ -638,36 +618,54 @@
                 });
             }
 
-            // Sorting
-            if (subTab === 'delivered') {
-                orders.sort((a, b) => new Date(b.delivered_at || b.created_at) - new Date(a.delivered_at || a.created_at));
-            } else if (subTab === 'cancelled') {
-                orders.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-            } else {
+            // Sort by status priority, then by time within each group
+            const statusPriority = { 'pending': 0, 'confirmed': 1, 'preparing': 1, 'ready': 2, 'delivering': 3, 'delivered': 4, 'cancelled': 5 };
+            orders.sort((a, b) => {
+                const pa = statusPriority[a.status] ?? 3;
+                const pb = statusPriority[b.status] ?? 3;
+                if (pa !== pb) return pa - pb;
                 // Active orders: oldest first (most urgent on top)
-                orders.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-            }
+                if (pa <= 3) return new Date(a.created_at) - new Date(b.created_at);
+                // Completed/cancelled: most recent first
+                return new Date(b.delivered_at || b.updated_at || b.created_at) - new Date(a.delivered_at || a.updated_at || a.created_at);
+            });
 
             return orders;
         }
 
         // ==================== RENDER ORDER LIST ====================
         function renderOrderList() {
-            renderSubTabs();
             const orders = getFilteredOrders();
             const container = document.getElementById('order-list');
 
             if (orders.length === 0) {
-                const emojis = { active: '📋', pending: '⏳', preparing: '🍳', ready: '✅', delivering: '🚚', delivered: '📦', cancelled: '❌' };
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-64 text-gray-400">
-                        <span class="text-4xl mb-3">${emojis[subTab] || '📋'}</span>
+                    <div class="flex flex-col items-center justify-center h-64 text-gray-500">
+                        <span class="text-4xl mb-3">📋</span>
                         <span class="text-sm">Sin pedidos${searchQuery ? ' para "' + searchQuery + '"' : ''}</span>
                     </div>`;
                 return;
             }
 
-            container.innerHTML = orders.map(o => renderOrderRow(o)).join('');
+            // Group by status for separators
+            const groupDefs = [
+                { key: 'pending', emoji: '⏳', label: 'Pendientes', filter: o => o.status === 'pending' },
+                { key: 'preparing', emoji: '🔥', label: 'En Preparacion', filter: o => o.status === 'confirmed' || o.status === 'preparing' },
+                { key: 'ready', emoji: '✅', label: 'Listos', filter: o => o.status === 'ready' },
+                { key: 'delivering', emoji: '🚚', label: 'En Camino', filter: o => o.status === 'delivering' },
+                { key: 'delivered', emoji: '📦', label: 'Entregados', filter: o => o.status === 'delivered' },
+                { key: 'cancelled', emoji: '❌', label: 'Cancelados', filter: o => o.status === 'cancelled' }
+            ];
+
+            let html = '';
+            for (const group of groupDefs) {
+                const groupOrders = orders.filter(group.filter);
+                if (groupOrders.length === 0) continue;
+                html += `<div class="group-separator">${group.emoji} ${group.label} (${groupOrders.length})</div>`;
+                html += groupOrders.map(o => renderOrderRow(o)).join('');
+            }
+
+            container.innerHTML = html;
         }
 
         function renderOrderRow(order) {
@@ -676,14 +674,9 @@
             const customerName = order.customer_name || extractFromNotes(order.customer_notes, 'Nombre') || '';
             const total = fmt(order.total);
 
-            // Status border color
-            let borderColor = 'border-l-gray-300';
-            if (order.status === 'pending') borderColor = 'border-l-yellow-400';
-            else if (order.status === 'confirmed' || order.status === 'preparing') borderColor = 'border-l-orange-400';
-            else if (order.status === 'ready') borderColor = 'border-l-green-400';
-            else if (order.status === 'delivering') borderColor = 'border-l-blue-400';
-            else if (order.status === 'delivered') borderColor = 'border-l-gray-300';
-            else if (order.status === 'cancelled') borderColor = 'border-l-red-400';
+            // Status strip class
+            let stripClass = 'strip-' + order.status;
+            if (order.status === 'confirmed') stripClass = 'strip-confirmed';
 
             // Time info
             const isActive = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
@@ -695,39 +688,37 @@
                 timeHTML = `<span class="text-xs font-medium px-2 py-0.5 rounded-full ${ti.bg} ${ti.color} w-14 text-center ${ti.pulse ? 'timer-pulse' : ''}" data-order-id="${order.id}">${ti.label}</span>`;
             } else if (order.status === 'delivered') {
                 const deliveredTime = formatTime(order.delivered_at);
-                timeHTML = `<span class="text-xs text-gray-400 w-14 text-center">${deliveredTime || '✅'}</span>`;
+                timeHTML = `<span class="text-xs text-gray-500 w-14 text-center">${deliveredTime || '✅'}</span>`;
             } else if (order.status === 'cancelled') {
-                timeHTML = `<span class="text-xs text-red-400 w-14 text-center">✕</span>`;
+                timeHTML = `<span class="text-xs text-red-400/60 w-14 text-center">✕</span>`;
             }
 
-            // Quick action button - contextual by status and delivery type
-            // Mostrador: Pendiente > Preparando > Entregado (listo = entregado)
-            // Delivery:  Pendiente > Preparando > Enviado > Entregado
+            // Quick action button with glow
             let quickBtn = '';
             if (order.status === 'pending') {
-                quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">CONFIRMAR</button>`;
+                quickBtn = `<button onclick="event.stopPropagation(); confirmOrder('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">CONFIRMAR</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 if (isDelivery) {
-                    quickBtn = `<button onclick="event.stopPropagation(); markReady('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-purple-500 text-white hover:bg-purple-600 w-24 transition">LISTO</button>`;
+                    quickBtn = `<button onclick="event.stopPropagation(); markReady('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-purple w-24">LISTO</button>`;
                 } else {
-                    quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">ENTREGADO</button>`;
+                    quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENTREGADO</button>`;
                 }
             } else if (order.status === 'ready' && isDelivery) {
-                quickBtn = `<button onclick="event.stopPropagation(); markDelivering('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 w-24 transition">ENVIADO</button>`;
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivering('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-blue w-24">ENVIADO</button>`;
             } else if (order.status === 'delivering') {
-                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded bg-green-500 text-white hover:bg-green-600 w-24 transition">ENTREGADO</button>`;
+                quickBtn = `<button onclick="event.stopPropagation(); markDelivered('${order.id}')" class="ml-2 text-xs font-bold px-3 py-1.5 rounded btn-glow-green w-24">ENTREGADO</button>`;
             }
 
-            const deliveredClass = order.status === 'delivered' ? 'opacity-60' : '';
-            const cancelledClass = order.status === 'cancelled' ? 'opacity-60' : '';
-            const totalClass = order.status === 'cancelled' ? 'line-through text-red-500' : 'text-gray-900';
+            const completedClass = (order.status === 'delivered' || order.status === 'cancelled') ? 'opacity-50' : '';
+            const totalClass = order.status === 'cancelled' ? 'line-through text-red-400/60' : 'text-white';
 
             return `
-            <div class="order-row flex items-center px-3 py-2.5 border-b border-gray-100 cursor-pointer border-l-4 ${borderColor} ${isSelected ? 'selected' : ''} ${isLate && !isSelected ? 'late' : ''} ${deliveredClass} ${cancelledClass}"
+            <div class="order-row flex items-center px-3 py-2.5 border-b border-white/5 cursor-pointer ${isSelected ? 'selected' : ''} ${isLate && !isSelected ? 'late' : ''} ${completedClass}"
                  onclick="selectOrder('${order.id}')">
-                <span class="font-bold text-base w-14 text-gray-900">#${order.order_number || '---'}</span>
+                <div class="status-strip ${stripClass} self-stretch mr-3"></div>
+                <span class="font-bold text-base w-14 text-white">#${order.order_number || '---'}</span>
                 <span class="w-7 text-center text-sm">${isDelivery ? '🚚' : '🏪'}</span>
-                <span class="flex-1 truncate text-sm text-gray-700 px-2">${customerName || '—'}${isDelivery && order.assigned_to ? ` <span class="text-xs text-blue-500">· ${order.assigned_to}</span>` : ''}</span>
+                <span class="flex-1 truncate text-sm text-gray-300 px-2">${customerName || '—'}${isDelivery && order.assigned_to ? ` <span class="text-xs text-blue-400">· ${order.assigned_to}</span>` : ''}</span>
                 ${timeHTML}
                 <span class="font-bold text-sm w-20 text-right ${totalClass}">${total}</span>
                 ${quickBtn}
@@ -740,12 +731,12 @@
 
             if (!selectedOrderId) {
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-gray-400">
-                        <svg class="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                        <svg class="w-16 h-16 mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                         </svg>
-                        <p class="text-base font-medium">Selecciona un pedido de la lista</p>
-                        <p class="text-sm mt-1">Usa las flechas o haz click en un pedido</p>
+                        <p class="text-base font-medium text-gray-400">Selecciona un pedido de la lista</p>
+                        <p class="text-sm mt-1 text-gray-600">Usa las flechas o haz click en un pedido</p>
                     </div>`;
                 return;
             }
@@ -754,7 +745,7 @@
             if (!order) {
                 selectedOrderId = null;
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                    <div class="flex flex-col items-center justify-center h-full text-gray-500">
                         <p class="text-sm">Pedido no encontrado</p>
                     </div>`;
                 return;
@@ -766,19 +757,19 @@
             const address = isDelivery ? (order.delivery_address || '') : '';
             const items = order.items || [];
 
-            // Status badge
+            // Status badge with glow
             const statusMap = {
-                'pending': { label: 'PENDIENTE', bg: 'bg-yellow-100', text: 'text-yellow-800' },
-                'confirmed': { label: 'CONFIRMADO', bg: 'bg-blue-100', text: 'text-blue-800' },
-                'preparing': { label: 'PREPARANDO', bg: 'bg-orange-100', text: 'text-orange-800' },
-                'ready': { label: 'LISTO', bg: 'bg-green-100', text: 'text-green-800' },
-                'delivering': { label: 'ENVIADO', bg: 'bg-blue-100', text: 'text-blue-800' },
-                'delivered': { label: 'ENTREGADO', bg: 'bg-gray-100', text: 'text-gray-600' },
-                'cancelled': { label: 'CANCELADO', bg: 'bg-red-100', text: 'text-red-800' }
+                'pending': { label: 'PENDIENTE', cls: 'status-badge-pending' },
+                'confirmed': { label: 'CONFIRMADO', cls: 'status-badge-confirmed' },
+                'preparing': { label: 'PREPARANDO', cls: 'status-badge-preparing' },
+                'ready': { label: 'LISTO', cls: 'status-badge-ready' },
+                'delivering': { label: 'ENVIADO', cls: 'status-badge-delivering' },
+                'delivered': { label: 'ENTREGADO', cls: 'status-badge-delivered' },
+                'cancelled': { label: 'CANCELADO', cls: 'status-badge-cancelled' }
             };
             const st = statusMap[order.status] || statusMap['pending'];
 
-            // Time info - shows timer for active orders
+            // Time info
             const isActive = ['pending', 'confirmed', 'preparing', 'ready', 'delivering'].includes(order.status);
             let timeSection = '';
             if (isActive) {
@@ -786,50 +777,49 @@
                 timeSection = `<span class="text-lg font-bold ${ti.color} ${ti.pulse ? 'timer-pulse' : ''}">${ti.label}</span>`;
             }
 
-            // Items HTML
+            // Items HTML - dark
             const itemsHTML = items.map((item, idx) => {
                 const itemSubtotal = fmt(item.subtotal || (item.price * item.quantity) || 0);
                 let obsLine = '';
-                if (item.obs) obsLine += `<p class="text-xs text-gray-400 italic ml-7">obs: ${item.obs}</p>`;
+                if (item.obs) obsLine += `<p class="text-xs text-gray-500 italic ml-7">obs: ${item.obs}</p>`;
                 if (item.cooking_method) {
                     const cm = item.cooking_method === 'frito' ? 'Frita' : item.cooking_method === 'horno' ? 'Al Horno' : item.cooking_method;
-                    obsLine += `<p class="text-xs text-orange-500 ml-7">[${cm}]</p>`;
+                    obsLine += `<p class="text-xs text-orange-400 ml-7">[${cm}]</p>`;
                 }
 
-                // Delete reason UI (inline)
                 let deleteReasonHTML = '';
                 if (deletingItemIndex === idx && selectedOrderId === order.id) {
                     deleteReasonHTML = `
-                        <div class="ml-7 mt-1 flex items-center space-x-2 bg-red-50 rounded px-2 py-1.5">
-                            <span class="text-xs text-red-600 font-medium whitespace-nowrap">Motivo?</span>
-                            <select id="delete-reason-${idx}" class="text-xs border border-red-200 rounded px-2 py-1 bg-white flex-1">
+                        <div class="ml-7 mt-1 flex items-center space-x-2 bg-red-500/10 rounded px-2 py-1.5">
+                            <span class="text-xs text-red-400 font-medium whitespace-nowrap">Motivo?</span>
+                            <select id="delete-reason-${idx}" class="text-xs bg-white/5 border border-white/10 text-white rounded px-2 py-1 flex-1">
                                 <option value="Cliente cancelo">Cliente cancelo</option>
                                 <option value="Sin stock">Sin stock</option>
                                 <option value="Error de carga">Error de carga</option>
                                 <option value="Cambio de pedido">Cambio de pedido</option>
                             </select>
                             <button onclick="confirmRemoveItem('${order.id}', ${idx})" class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 font-bold">Eliminar</button>
-                            <button onclick="cancelDeleteItem()" class="text-xs text-gray-500 hover:text-gray-700">&times;</button>
+                            <button onclick="cancelDeleteItem()" class="text-xs text-gray-500 hover:text-gray-300">&times;</button>
                         </div>`;
                 }
 
                 const isEditable = !['delivered', 'cancelled', 'delivering'].includes(order.status);
 
                 return `
-                <div class="py-2 ${idx > 0 ? 'border-t border-gray-100' : ''}">
+                <div class="py-2 ${idx > 0 ? 'border-t border-white/5' : ''}">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center flex-1 min-w-0">
-                            <span class="font-semibold text-sm w-7 text-gray-900">${item.quantity}x</span>
-                            <span class="text-sm text-gray-800 truncate">${item.name}</span>
+                            <span class="font-semibold text-sm w-7 text-white">${item.quantity}x</span>
+                            <span class="text-sm text-gray-300 truncate">${item.name}</span>
                         </div>
-                        <span class="text-sm font-medium text-gray-700 ml-2 whitespace-nowrap">${itemSubtotal}</span>
+                        <span class="text-sm font-medium text-gray-400 ml-2 whitespace-nowrap">${itemSubtotal}</span>
                     </div>
                     ${obsLine}
                     ${isEditable ? `
                     <div class="ml-7 mt-1 flex items-center space-x-1">
-                        <button onclick="editItemQuantity('${order.id}', ${idx}, 1)" class="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold transition" title="Agregar 1">+</button>
-                        <button onclick="editItemQuantity('${order.id}', ${idx}, -1)" class="w-6 h-6 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold transition" title="Quitar 1">&minus;</button>
-                        <button onclick="startDeleteItem(${idx})" class="w-6 h-6 flex items-center justify-center rounded bg-red-50 hover:bg-red-100 text-red-500 text-xs transition" title="Eliminar item">🗑️</button>
+                        <button onclick="editItemQuantity('${order.id}', ${idx}, 1)" class="w-6 h-6 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-gray-400 text-sm font-bold transition" title="Agregar 1">+</button>
+                        <button onclick="editItemQuantity('${order.id}', ${idx}, -1)" class="w-6 h-6 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-gray-400 text-sm font-bold transition" title="Quitar 1">&minus;</button>
+                        <button onclick="startDeleteItem(${idx})" class="w-6 h-6 flex items-center justify-center rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs transition" title="Eliminar item">🗑️</button>
                     </div>
                     ` : ''}
                     ${deleteReasonHTML}
@@ -842,22 +832,20 @@
             const discount = parseFloat(order.discount || 0);
             const total = parseFloat(order.total || 0);
 
-            // Main action button - contextual by status and delivery type
-            // Mostrador: Pendiente > Preparando > Entregado
-            // Delivery:  Pendiente > Preparando > Listo > Enviado > Entregado
+            // Main action button with glow
             let mainActionHTML = '';
             if (order.status === 'pending') {
-                mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ CONFIRMAR PEDIDO</button>`;
+                mainActionHTML = `<button onclick="confirmOrder('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ CONFIRMAR PEDIDO</button>`;
             } else if (order.status === 'confirmed' || order.status === 'preparing') {
                 if (isDelivery) {
-                    mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-purple-500 hover:bg-purple-600 transition">✓ MARCAR LISTO</button>`;
+                    mainActionHTML = `<button onclick="markReady('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-purple">✓ MARCAR LISTO</button>`;
                 } else {
-                    mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ MARCAR ENTREGADO</button>`;
+                    mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
                 }
             } else if (order.status === 'ready' && isDelivery) {
-                mainActionHTML = `<button onclick="markDelivering('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-blue-500 hover:bg-blue-600 transition">🚚 MARCAR ENVIADO</button>`;
+                mainActionHTML = `<button onclick="markDelivering('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-blue">🚚 MARCAR ENVIADO</button>`;
             } else if (order.status === 'delivering') {
-                mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg text-white font-bold text-sm bg-green-500 hover:bg-green-600 transition">✓ MARCAR ENTREGADO</button>`;
+                mainActionHTML = `<button onclick="markDelivered('${order.id}')" class="w-full py-3 rounded-lg font-bold text-sm btn-glow-green">✓ MARCAR ENTREGADO</button>`;
             }
 
             // Timeline
@@ -881,63 +869,63 @@
             container.innerHTML = `
             <div class="detail-enter">
                 <!-- Header -->
-                <div class="px-5 pt-5 pb-3 bg-white border-b border-gray-200">
+                <div class="px-5 pt-5 pb-3 border-b border-white/5">
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center space-x-3">
-                            <span class="text-2xl font-bold text-gray-900">#${order.order_number || '---'}</span>
-                            <span class="text-xs font-bold px-2.5 py-1 rounded-full ${st.bg} ${st.text}">${st.label}</span>
+                            <span class="text-2xl font-bold text-white">#${order.order_number || '---'}</span>
+                            <span class="text-xs font-bold px-2.5 py-1 rounded-full ${st.cls}">${st.label}</span>
                         </div>
                         ${timeSection}
                     </div>
                     <div class="flex items-center space-x-2 mb-1">
-                        <span class="text-sm font-bold ${isDelivery ? 'text-blue-600' : 'text-green-600'}">${isDelivery ? '🚚 DELIVERY' : '🏪 RETIRA EN LOCAL'}</span>
+                        <span class="text-sm font-bold ${isDelivery ? 'text-blue-400' : 'text-green-400'}">${isDelivery ? '🚚 DELIVERY' : '🏪 RETIRA EN LOCAL'}</span>
                     </div>
-                    ${address ? `<p class="text-sm text-gray-600 mb-0.5">${address}</p>` : ''}
-                    ${customerName ? `<p class="text-sm text-gray-700 font-medium">${customerName}</p>` : ''}
-                    ${customerPhone ? `<p class="text-sm text-gray-500"><a href="tel:${customerPhone}" class="hover:text-blue-600 underline decoration-dotted">${customerPhone}</a></p>` : ''}
+                    ${address ? `<p class="text-sm text-gray-400 mb-0.5">${address}</p>` : ''}
+                    ${customerName ? `<p class="text-sm text-gray-300 font-medium">${customerName}</p>` : ''}
+                    ${customerPhone ? `<p class="text-sm text-gray-500"><a href="tel:${customerPhone}" class="hover:text-blue-400 underline decoration-dotted">${customerPhone}</a></p>` : ''}
                 </div>
 
                 <!-- Items -->
-                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-white/5">
                     <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Items</h3>
-                    ${itemsHTML || '<p class="text-sm text-gray-400">Sin items</p>'}
+                    ${itemsHTML || '<p class="text-sm text-gray-600">Sin items</p>'}
                     ${canEdit ? `
-                    <button onclick="openAddItemModal('${order.id}')" class="mt-3 w-full py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition">+ Agregar item</button>
+                    <button onclick="openAddItemModal('${order.id}')" class="mt-3 w-full py-2 text-sm font-medium text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/10 transition">+ Agregar item</button>
                     ` : ''}
                 </div>
 
                 <!-- Totals + Discount -->
-                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-white/5">
                     <div class="space-y-1">
-                        <div class="flex justify-between text-sm text-gray-600">
+                        <div class="flex justify-between text-sm text-gray-400">
                             <span>Subtotal</span>
                             <span>${fmt(subtotal)}</span>
                         </div>
                         ${deliveryFee > 0 ? `
-                        <div class="flex justify-between text-sm text-blue-600">
+                        <div class="flex justify-between text-sm text-blue-400">
                             <span>Envio</span>
                             <span>${fmt(deliveryFee)}</span>
                         </div>` : ''}
                         ${discount > 0 ? `
-                        <div class="flex justify-between text-sm text-red-500">
+                        <div class="flex justify-between text-sm text-red-400">
                             <span>Descuento${order.discount_reason ? ' (' + order.discount_reason + ')' : ''}</span>
                             <span>-${fmt(discount)}</span>
                         </div>` : ''}
-                        <div class="flex justify-between text-lg font-bold text-gray-900 pt-1 border-t border-gray-200">
+                        <div class="flex justify-between text-lg font-bold text-white pt-1 border-t border-white/10">
                             <span>TOTAL</span>
                             <span>${fmt(total)}</span>
                         </div>
                     </div>
                     ${canEdit ? `
-                    <div class="mt-3 pt-2 border-t border-gray-100">
+                    <div class="mt-3 pt-2 border-t border-white/5">
                         ${discount > 0 ? `
                         <div class="flex items-center justify-between">
-                            <span class="text-xs text-red-500 font-medium">Descuento aplicado: -${fmt(discount)}</span>
-                            <button onclick="removeDiscount('${order.id}')" class="text-xs text-red-500 hover:text-red-700 underline">Quitar</button>
+                            <span class="text-xs text-red-400 font-medium">Descuento aplicado: -${fmt(discount)}</span>
+                            <button onclick="removeDiscount('${order.id}')" class="text-xs text-red-400 hover:text-red-300 underline">Quitar</button>
                         </div>
                         ` : `
                         <div id="discount-form-${order.id}">
-                            <button onclick="showDiscountForm('${order.id}')" class="w-full py-1.5 text-xs font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition">Aplicar descuento</button>
+                            <button onclick="showDiscountForm('${order.id}')" class="w-full py-1.5 text-xs font-medium text-orange-400 border border-orange-500/20 rounded-lg hover:bg-orange-500/10 transition">Aplicar descuento</button>
                         </div>
                         `}
                     </div>
@@ -945,9 +933,9 @@
                 </div>
 
                 <!-- Payment -->
-                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-white/5">
                     <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Medio de pago</h3>
-                    <select onchange="updatePaymentMethod('${order.id}', this.value)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <select onchange="updatePaymentMethod('${order.id}', this.value)" class="w-full bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="cash" ${order.payment_method === 'cash' ? 'selected' : ''}>💵 Efectivo</option>
                         <option value="debit_card" ${order.payment_method === 'debit_card' ? 'selected' : ''}>💳 Tarj. Debito</option>
                         <option value="credit_card" ${order.payment_method === 'credit_card' ? 'selected' : ''}>💳 Tarj. Credito</option>
@@ -960,20 +948,20 @@
 
                 <!-- Cadete / Mozo assignment -->
                 ${isDelivery ? `
-                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-white/5">
                     <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Cadete asignado</h3>
                     <div class="flex items-center space-x-2">
-                        <select onchange="assignStaff('${order.id}', this.value)" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <select onchange="assignStaff('${order.id}', this.value)" class="flex-1 bg-white/5 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Sin asignar</option>
                             ${staffCache.filter(s => s.role === 'cadete').map(s => `<option value="${s.name}" ${order.assigned_to === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
                         </select>
-                        <button onclick="openStaffManager()" class="px-2 py-2 text-gray-400 hover:text-blue-600 transition" title="Administrar cadetes">⚙️</button>
+                        <button onclick="openStaffManager()" class="px-2 py-2 text-gray-500 hover:text-blue-400 transition" title="Administrar cadetes">⚙️</button>
                     </div>
                 </div>
                 ` : ''}
 
                 <!-- Timeline -->
-                <div class="px-5 py-3 bg-white border-b border-gray-200">
+                <div class="px-5 py-3 border-b border-white/5">
                     <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Historial</h3>
                     <div class="space-y-1">
                         ${timelineHTML}
@@ -981,14 +969,14 @@
                 </div>
 
                 <!-- Actions -->
-                <div class="px-5 py-4 bg-white">
+                <div class="px-5 py-4">
                     ${mainActionHTML ? `<div class="mb-3">${mainActionHTML}</div>` : ''}
                     <div class="flex items-center space-x-2 mb-3">
-                        <button onclick="reprintOrder('${order.id}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">🖨️ Reimprimir</button>
-                        <button onclick="notifyCustomerWhatsApp('${order.id}', '${order_whatsapp_event(order.status)}')" class="flex-1 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">💬 WhatsApp</button>
+                        <button onclick="reprintOrder('${order.id}')" class="flex-1 py-2.5 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-lg transition">🖨️ Reimprimir</button>
+                        <button onclick="notifyCustomerWhatsApp('${order.id}', '${order_whatsapp_event(order.status)}')" class="flex-1 py-2.5 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 rounded-lg transition">💬 WhatsApp</button>
                     </div>
                     ${order.status !== 'cancelled' && order.status !== 'delivered' ? `
-                    <button onclick="cancelOrder('${order.id}')" class="w-full py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition">❌ Cancelar pedido</button>
+                    <button onclick="cancelOrder('${order.id}')" class="w-full py-2 text-sm font-medium text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition">❌ Cancelar pedido</button>
                     ` : ''}
                 </div>
             </div>`;
@@ -1119,20 +1107,20 @@
             const container = document.getElementById('discount-form-' + orderId);
             if (!container) return;
             container.innerHTML = `
-                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                <div class="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 space-y-2">
                     <div class="flex space-x-2">
-                        <label class="flex items-center space-x-1 text-xs cursor-pointer">
+                        <label class="flex items-center space-x-1 text-xs cursor-pointer text-gray-300">
                             <input type="radio" name="disc-type-${orderId}" value="percent" checked class="accent-orange-500"> <span>%</span>
                         </label>
-                        <label class="flex items-center space-x-1 text-xs cursor-pointer">
+                        <label class="flex items-center space-x-1 text-xs cursor-pointer text-gray-300">
                             <input type="radio" name="disc-type-${orderId}" value="fixed" class="accent-orange-500"> <span>$ Fijo</span>
                         </label>
                     </div>
-                    <input type="number" id="disc-value-${orderId}" min="0" step="any" placeholder="Valor" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-                    <input type="text" id="disc-reason-${orderId}" placeholder="Motivo (opcional)" class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
+                    <input type="number" id="disc-value-${orderId}" min="0" step="any" placeholder="Valor" class="w-full bg-white/5 border border-white/10 text-white rounded px-2 py-1.5 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                    <input type="text" id="disc-reason-${orderId}" placeholder="Motivo (opcional)" class="w-full bg-white/5 border border-white/10 text-white rounded px-2 py-1.5 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500">
                     <div class="flex space-x-2">
-                        <button onclick="applyDiscount('${orderId}')" class="flex-1 py-1.5 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition">Aplicar</button>
-                        <button onclick="renderOrderDetail()" class="flex-1 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancelar</button>
+                        <button onclick="applyDiscount('${orderId}')" class="flex-1 py-1.5 text-xs font-bold btn-glow-orange rounded-lg">Aplicar</button>
+                        <button onclick="renderOrderDetail()" class="flex-1 py-1.5 text-xs font-medium text-gray-400 bg-white/5 hover:bg-white/10 rounded-lg transition">Cancelar</button>
                     </div>
                 </div>`;
             document.getElementById('disc-value-' + orderId).focus();
@@ -1266,17 +1254,17 @@
             const container = document.getElementById('staff-list');
             const cadetes = staffCache.filter(s => s.role === 'cadete');
             container.innerHTML = cadetes.map(s => `
-                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center justify-between py-2 px-3 bg-white/5 rounded-lg border border-white/5">
                     <div class="flex items-center space-x-3">
                         <span class="text-lg">🏍️</span>
                         <div>
-                            <p class="text-sm font-medium text-gray-800">${s.name}</p>
+                            <p class="text-sm font-medium text-gray-200">${s.name}</p>
                             ${s.phone ? `<p class="text-xs text-gray-500">${s.phone}</p>` : ''}
                         </div>
                     </div>
-                    <button onclick="removeStaffMember('${s.id}')" class="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                    <button onclick="removeStaffMember('${s.id}')" class="text-xs text-red-400 hover:text-red-300">Eliminar</button>
                 </div>
-            `).join('') || '<p class="text-sm text-gray-400 text-center py-4">No hay cadetes</p>';
+            `).join('') || '<p class="text-sm text-gray-500 text-center py-4">No hay cadetes</p>';
         }
 
         async function addStaffMember() {
@@ -1354,14 +1342,14 @@
             filteredProductsCache = products;
             const container = document.getElementById('product-grid');
             if (products.length === 0) {
-                container.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-12">No se encontraron productos</div>';
+                container.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-12">No se encontraron productos</div>';
                 return;
             }
             container.innerHTML = products.map((p, idx) => `
                 <button onclick="addProductByIndex(${idx})"
-                        class="bg-white border border-gray-200 rounded-lg p-3 hover:border-blue-400 hover:shadow-sm transition text-left">
-                    <p class="text-sm font-medium text-gray-800 truncate">${p.name}</p>
-                    <p class="text-sm font-bold text-orange-600 mt-1">${fmt(p.price)}</p>
+                        class="bg-white/5 border border-white/10 rounded-lg p-3 hover:border-orange-500/50 hover:bg-white/10 transition text-left">
+                    <p class="text-sm font-medium text-gray-200 truncate">${p.name}</p>
+                    <p class="text-sm font-bold text-orange-400 mt-1">${fmt(p.price)}</p>
                 </button>
             `).join('');
         }
@@ -1722,90 +1710,90 @@
 
                 <!-- Summary Cards -->
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                    <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-                        <p class="text-green-600 text-sm font-medium">Total Ventas</p>
-                        <p class="text-2xl font-bold text-green-700">${fmt(totalVentas)}</p>
+                    <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center">
+                        <p class="text-green-400 text-sm font-medium">Total Ventas</p>
+                        <p class="text-2xl font-bold text-green-400">${fmt(totalVentas)}</p>
                     </div>
-                    <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-                        <p class="text-orange-600 text-sm font-medium">Pedidos</p>
-                        <p class="text-2xl font-bold text-orange-700">${count}</p>
-                        <p class="text-xs text-gray-400">${delivered.length} entregados / ${active.length} en curso</p>
+                    <div class="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-center">
+                        <p class="text-orange-400 text-sm font-medium">Pedidos</p>
+                        <p class="text-2xl font-bold text-orange-400">${count}</p>
+                        <p class="text-xs text-gray-500">${delivered.length} entregados / ${active.length} en curso</p>
                     </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                        <p class="text-blue-600 text-sm font-medium">Ticket Promedio</p>
-                        <p class="text-2xl font-bold text-blue-700">${fmt(avg)}</p>
+                    <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
+                        <p class="text-blue-400 text-sm font-medium">Ticket Promedio</p>
+                        <p class="text-2xl font-bold text-blue-400">${fmt(avg)}</p>
                     </div>
-                    <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
-                        <p class="text-purple-600 text-sm font-medium">Envios cobrados</p>
-                        <p class="text-2xl font-bold text-purple-700">${fmt(totalDeliveryFees)}</p>
-                        ${totalDiscounts > 0 ? `<p class="text-xs text-red-500">Desc: -${fmt(totalDiscounts)}</p>` : ''}
+                    <div class="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 text-center">
+                        <p class="text-purple-400 text-sm font-medium">Envios cobrados</p>
+                        <p class="text-2xl font-bold text-purple-400">${fmt(totalDeliveryFees)}</p>
+                        ${totalDiscounts > 0 ? `<p class="text-xs text-red-400">Desc: -${fmt(totalDiscounts)}</p>` : ''}
                     </div>
-                    <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                        <p class="text-red-600 text-sm font-medium">Cancelados</p>
-                        <p class="text-2xl font-bold text-red-700">${cancelledOrders.length}</p>
-                        <p class="text-xs text-gray-400">${fmt(cancelledTotal)} perdido</p>
+                    <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                        <p class="text-red-400 text-sm font-medium">Cancelados</p>
+                        <p class="text-2xl font-bold text-red-400">${cancelledOrders.length}</p>
+                        <p class="text-xs text-gray-500">${fmt(cancelledTotal)} perdido</p>
                     </div>
                 </div>
 
                 <!-- Two columns -->
                 <div class="grid md:grid-cols-2 gap-6 mb-8">
                     <!-- By delivery type -->
-                    <div class="bg-gray-50 rounded-xl p-5">
-                        <h3 class="font-bold text-gray-700 mb-4">Por Tipo de Pedido</h3>
+                    <div class="bg-white/5 rounded-xl p-5 border border-white/5">
+                        <h3 class="font-bold text-gray-300 mb-4">Por Tipo de Pedido</h3>
                         <div class="space-y-3">
-                            <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                            <div class="flex items-center justify-between bg-white/5 rounded-lg p-3 border border-white/5">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">🚚</span>
                                     <div>
-                                        <p class="font-semibold">Delivery</p>
-                                        <p class="text-xs text-gray-400">${deliveryOrders.length} pedidos</p>
+                                        <p class="font-semibold text-gray-200">Delivery</p>
+                                        <p class="text-xs text-gray-500">${deliveryOrders.length} pedidos</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-lg">${fmt(deliveryTotal)}</span>
+                                <span class="font-bold text-lg text-white">${fmt(deliveryTotal)}</span>
                             </div>
-                            <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                            <div class="flex items-center justify-between bg-white/5 rounded-lg p-3 border border-white/5">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">🏪</span>
                                     <div>
-                                        <p class="font-semibold">Mostrador / Retira</p>
-                                        <p class="text-xs text-gray-400">${pickupOrders.length} pedidos</p>
+                                        <p class="font-semibold text-gray-200">Mostrador / Retira</p>
+                                        <p class="text-xs text-gray-500">${pickupOrders.length} pedidos</p>
                                     </div>
                                 </div>
-                                <span class="font-bold text-lg">${fmt(pickupTotal)}</span>
+                                <span class="font-bold text-lg text-white">${fmt(pickupTotal)}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- By payment method -->
-                    <div class="bg-gray-50 rounded-xl p-5">
-                        <h3 class="font-bold text-gray-700 mb-4">Por Medio de Pago</h3>
+                    <div class="bg-white/5 rounded-xl p-5 border border-white/5">
+                        <h3 class="font-bold text-gray-300 mb-4">Por Medio de Pago</h3>
                         <div class="space-y-2">
                             ${Object.entries(byPayment).sort((a, b) => b[1].total - a[1].total).map(([method, data]) => `
-                                <div class="flex items-center justify-between bg-white rounded-lg p-3 border">
+                                <div class="flex items-center justify-between bg-white/5 rounded-lg p-3 border border-white/5">
                                     <div class="flex items-center space-x-2">
                                         <span>${PAY_ICONS[method] || '💰'}</span>
                                         <div>
-                                            <p class="font-medium text-sm">${PAY_LABELS[method] || method}</p>
-                                            <p class="text-xs text-gray-400">${data.count} pedido${data.count > 1 ? 's' : ''}</p>
+                                            <p class="font-medium text-sm text-gray-200">${PAY_LABELS[method] || method}</p>
+                                            <p class="text-xs text-gray-500">${data.count} pedido${data.count > 1 ? 's' : ''}</p>
                                         </div>
                                     </div>
-                                    <span class="font-bold">${fmt(data.total)}</span>
+                                    <span class="font-bold text-white">${fmt(data.total)}</span>
                                 </div>
                             `).join('')}
-                            ${Object.keys(byPayment).length === 0 ? '<p class="text-gray-400 text-sm text-center py-4">Sin pedidos</p>' : ''}
+                            ${Object.keys(byPayment).length === 0 ? '<p class="text-gray-500 text-sm text-center py-4">Sin pedidos</p>' : ''}
                         </div>
                     </div>
                 </div>
 
                 <!-- Top Products -->
                 ${topProducts.length > 0 ? `
-                <div class="bg-gray-50 rounded-xl p-5">
-                    <h3 class="font-bold text-gray-700 mb-4">Productos mas vendidos</h3>
+                <div class="bg-white/5 rounded-xl p-5 border border-white/5">
+                    <h3 class="font-bold text-gray-300 mb-4">Productos mas vendidos</h3>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                         ${topProducts.map(([name, qty], i) => `
-                            <div class="bg-white rounded-lg p-3 border text-center">
-                                <p class="font-bold text-orange-600">${qty}</p>
-                                <p class="text-xs text-gray-600 truncate" title="${name}">${name}</p>
+                            <div class="bg-white/5 rounded-lg p-3 border border-white/5 text-center">
+                                <p class="font-bold text-orange-400">${qty}</p>
+                                <p class="text-xs text-gray-400 truncate" title="${name}">${name}</p>
                             </div>
                         `).join('')}
                     </div>
@@ -1856,9 +1844,9 @@
         }
 
         function showToast(msg, type = 'info') {
-            const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+            const colors = { success: 'bg-green-500/90', error: 'bg-red-500/90', info: 'bg-blue-500/90' };
             const toast = document.createElement('div');
-            toast.className = `toast ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg text-sm`;
+            toast.className = `toast ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg text-sm backdrop-blur-sm border border-white/10`;
             toast.textContent = msg;
             document.getElementById('toast-container').appendChild(toast);
             setTimeout(() => {
@@ -1871,7 +1859,7 @@
         // ==================== TIMER UPDATE ====================
         setInterval(() => {
             if (!appInitialized) return;
-            // Update all visible timers using order data
+            // Update all visible timers using order data (dark theme colors)
             document.querySelectorAll('[data-order-id]').forEach(el => {
                 const order = allOrders.find(o => o.id === el.dataset.orderId);
                 if (!order) return;
@@ -1922,11 +1910,12 @@
                 e.preventDefault();
                 executeMainAction();
             }
-            if (e.key >= '1' && e.key <= '6' && e.altKey) {
+            // Alt+1-4: switch mother tabs
+            if (e.key >= '1' && e.key <= '4' && e.altKey) {
                 e.preventDefault();
-                const tabs = ['active', 'pending', 'preparing', 'ready', 'delivered', 'cancelled'];
+                const tabs = ['todos', 'mostrador', 'delivery', 'salon'];
                 const idx = parseInt(e.key) - 1;
-                if (idx < tabs.length) switchTab(tabs[idx]);
+                if (idx < tabs.length) switchMotherTab(tabs[idx]);
             }
         });
     </script>
